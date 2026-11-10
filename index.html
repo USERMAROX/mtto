@@ -73,6 +73,10 @@ textarea.in{resize:vertical}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;max-width:90vw;z-index:20}
 .hidden{display:none!important}
+.chip.mine{background:var(--primary-soft);color:var(--primary)}
+.search{display:flex;gap:8px}.search .in{flex:1}.search .btn{width:auto}
+.res{display:flex;flex-direction:column;gap:8px}
+.res button{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
 </style>
 </head>
 <body>
@@ -145,8 +149,15 @@ function vistaDenegado(msg) {
 
 /* ---------- API ---------- */
 async function api(accion, datos) {
-  const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ accion, idToken: S.token, a: S.a, k: S.k }, datos || {})) });
+  const body = JSON.stringify(Object.assign({ accion, idToken: S.token, a: S.a, k: S.k }, datos || {}));
+  let res;
+  for (let intento = 0; intento < 2; intento++) {
+    try { res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }); break; }
+    catch (e) {
+      if (intento === 1) throw new Error('No se pudo conectar con el servidor. Revisa la conexión a internet e intenta de nuevo.');
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
   const j = await res.json();
   if (!j.ok) {
     if (j.code === 'NO_AUTORIZADO') {
@@ -175,17 +186,43 @@ function vistaError(msg) {
     <button class="btn" type="button" onclick="location.reload()">Reintentar</button></div>`;
 }
 
+function buscadorHTML() {
+  return `<div><label class="f" for="bq">Buscar equipo o área sin QR</label>
+    <div class="search"><input id="bq" class="in" placeholder="Código, nombre o sector (E036, marmita, ptap)" autocomplete="off">
+    <button class="btn" id="bgo" type="button">Buscar</button></div></div><div id="bres" class="res"></div>`;
+}
+function activarBuscador() {
+  const inp = document.getElementById('bq'), out = document.getElementById('bres');
+  const run = async () => {
+    const q = inp.value.trim();
+    if (q.length < 2) { out.innerHTML = '<span class="muted">Escribe al menos 2 caracteres.</span>'; return; }
+    out.innerHTML = '<span class="muted">Buscando…</span>';
+    try {
+      const r = await api('buscar', { q });
+      out.innerHTML = r.resultados.length ? r.resultados.map(x =>
+        `<button type="button" data-cod="${esc(x.codigo)}"><span class="row"><span class="code">${esc(x.codigo)}</span>
+          <span class="chip gr">${esc(x.tipo === 'AREA' ? 'Área' : 'Equipo')}</span></span>
+          <span style="font-weight:500">${esc(x.nombre)}</span>${x.sector ? `<span class="muted">${esc(x.sector)}</span>` : ''}</button>`).join('')
+        : '<div class="empty">Sin resultados. Prueba con otra palabra o con el código.</div>';
+      out.querySelectorAll('[data-cod]').forEach(b => b.onclick = () => irActivo(b.dataset.cod));
+    } catch (e) { if (!e.manejado) out.innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
+  };
+  document.getElementById('bgo').onclick = run;
+  inp.onkeydown = e => { if (e.key === 'Enter') run(); };
+}
+function irActivo(cod) {
+  S.a = cod; S.k = ''; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
+  try { history.replaceState(null, '', location.pathname + '?a=' + encodeURIComponent(cod)); } catch (e) {}
+  cargarActivo();
+}
+
 function vistaSinActivo() {
   app.innerHTML = `<div class="wrap pad">
-    <div class="note info">Sesión iniciada como <b>${esc(S.tec.nombre)}</b>. Escanea el QR de un equipo para ver sus tareas.</div>
-    <div><label class="f" for="cod">O consulta un activo por código</label>
-    <input id="cod" class="in" placeholder="E036 o A02" autocomplete="off" autocapitalize="characters"></div>
-    <button class="btn" id="ir" type="button">Consultar</button>
-    <p class="muted" style="margin:0">Sin escanear el QR puedes consultar la hoja de vida, pero no registrar.</p></div>`;
-  document.getElementById('ir').onclick = () => {
-    const v = document.getElementById('cod').value.trim().toUpperCase();
-    if (v) { S.a = v; S.k = ''; cargarActivo(); }
-  };
+    <div class="note info">Sesión iniciada como <b>${esc(S.tec.nombre)}</b>. Escanea el QR de un equipo o búscalo aquí.</div>
+    ${buscadorHTML()}
+    <p class="muted" style="margin:0">${S.tec.permisos.anular ? 'Como supervisor puedes registrar sin QR; el registro quedará marcado como manual.'
+      : 'Sin escanear el QR puedes consultar, pero para registrar debes escanear el código del equipo.'}</p></div>`;
+  activarBuscador();
 }
 
 /* ---------- Activo y pendientes ---------- */
@@ -213,11 +250,13 @@ function tarjeta(p, tipo) {
   const det = tipo === 'venc' ? `Programada ${esc(p.quincena)} · se cierra como NE al terminar ${esc(p.cierraNE || '')}`
             : tipo === 'int' ? `${esc(p.frecuencia)} · última: ${esc(p.ultima || 'sin registro')} · vence ${esc(p.vence)}`
             : esc(p.frecuencia);
+  const asig = p.mia ? '<span class="chip mine">Asignada a ti</span>'
+             : `<span class="chip gr">${esc(p.asignado ? 'Asignada a ' + p.asignado : 'Sin asignar')}</span>`;
   return `<div class="card" ${tipo === 'venc' ? 'style="border-color:var(--ex-line)"' : ''}>
-    <div class="row"><span class="code">${esc(p.codigo)}</span>
-      ${tipo === 'venc' ? `<span class="chip ex">Vencida</span>` : tipo === 'otro' ? `<span class="chip gr">${esc(p.asignado || 'Sin asignar')}</span>` : ''}</div>
+    <div class="row"><span class="code">${esc(p.codigo)}</span>${tipo === 'venc' ? '<span class="chip ex">Vencida</span>' : ''}</div>
     <span style="font-size:15px;font-weight:500">${esc(p.descripcion)}</span>
     <span class="muted">${det}</span>
+    <div>${asig}</div>
     ${ok ? `<button type="button" class="btn ${cls}" onclick='abrirForm(${JSON.stringify(p.codigo)})'>Ejecutar${tipo === 'venc' ? ' (se registra EX)' : ''}</button>` : ''}</div>`;
 }
 
@@ -227,28 +266,31 @@ function vistaActivo() {
   const bloque = (titulo, cls, lista, tipo, vacio) => `<span class="sec ${cls}">${titulo} (${lista.length})</span>` +
     (lista.length ? lista.map(x => tarjeta(x, tipo)).join('') : `<div class="empty">${vacio}</div>`);
   app.innerHTML = cabecera('p') + `<div class="wrap pad">
-    ${!d.tokenValido ? `<div class="note warn">Para registrar actividades escanea el código QR pegado en el equipo. Desde aquí solo puedes consultar.</div>` : ''}
+    ${d.modo === 'MANUAL' ? `<div class="note info">Acceso manual, sin QR. Los registros quedarán marcados como manuales.</div>` : ''}
+    ${d.modo === 'CONSULTA' ? `<div class="note warn">Para registrar actividades escanea el código QR pegado en el equipo. Desde aquí solo puedes consultar.</div>` : ''}
     <div class="qband"><div class="row"><span class="code" style="font-size:18px">${esc(d.quincena.etiqueta)}</span>
       <span style="font-size:13px">${esc(d.quincena.inicio)} a ${esc(d.quincena.fin)}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <span style="font-size:13px">${d.resumen.ejecutadas} de ${d.resumen.programadas} tareas de la quincena ejecutadas</span></div>
     ${p.vencidas.length ? bloque('Vencidas, aún subsanables', 'ex', p.vencidas, 'venc', '') : ''}
-    ${bloque('Esta quincena, asignadas a ti', 'pr', p.actuales, 'act', 'No tienes tareas de esta quincena en este activo.')}
+    ${bloque('Pendientes de esta quincena', 'pr', p.actuales, 'act', 'No hay tareas pendientes en esta quincena.')}
     ${p.intervalo.length ? bloque('Por intervalo, próximas a vencer', 'gr', p.intervalo, 'int', '') : ''}
-    ${bloque('Asignadas a otros técnicos', 'gr', p.otros, 'otro', 'Sin tareas de otros técnicos en este activo.')}
     <span class="sec at">Ejecutadas esta quincena (${d.ejecutadas.length})</span>
     ${d.ejecutadas.length ? d.ejecutadas.map(e => `<div class="card" style="padding:12px 14px"><div class="row">
       <div><span class="code" style="font-size:13px">${esc(e.codigo)}</span><div class="muted">${esc(e.fecha)} · ${esc(e.tecnico)}</div></div>
       ${chip(e.cumplimiento) || '<span class="chip gr">Correctivo</span>'}</div></div>`).join('') : '<div class="empty">Aún no hay registros en esta quincena.</div>'}
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;font-size:14px">Ir a otro equipo o área</summary>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px">${buscadorHTML()}</div></details>
   </div>
   ${d.puedeRegistrar ? `<div class="foot"><div class="wrap"><button type="button" class="btn big" onclick="abrirForm('1')">+ Registrar correctivo</button></div></div>` : ''}`;
+  activarBuscador();
   window.scrollTo(0, 0);
 }
 
 /* ---------- Formulario de ejecución ---------- */
 let F = {};
 function abrirForm(codigo) {
-  const d = S.data, todas = [].concat(d.pendientes.vencidas, d.pendientes.actuales, d.pendientes.intervalo, d.pendientes.otros);
+  const d = S.data, todas = [].concat(d.pendientes.vencidas, d.pendientes.actuales, d.pendientes.intervalo);
   const t = codigo === '1' ? null : todas.find(x => x.codigo === codigo);
   F = { codigo, tarea: t, foto: null, operativo: 'SI' };
   const ex = t && t.vencida;
