@@ -446,7 +446,7 @@ function cargarJsQR() {
 function procesarQR(txt) {
   let a = '', k = '';
   try { const u = new URL(txt); a = (u.searchParams.get('a') || '').toUpperCase(); k = u.searchParams.get('k') || ''; }
-  catch (e) { if (/^[EA]\s*\d{1,4}$/i.test(txt.trim())) a = txt.trim().toUpperCase(); }
+  catch (e) { if (/^[EAM]\s*\d{1,4}$/i.test(txt.trim())) a = txt.trim().toUpperCase(); }
   if (!a) return false;
   if (navigator.vibrate) navigator.vibrate(80);
   S.a = a; S.k = k; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
@@ -457,7 +457,7 @@ function procesarQR(txt) {
 /* ---------- Buscador manual ---------- */
 function buscadorHTML() {
   return `<div><label class="f" for="bq">Buscar equipo o área por código o nombre</label>
-    <div class="search"><input id="bq" class="in" placeholder="E036, marmita, ptap…" autocomplete="off">
+    <div class="search"><input id="bq" class="in" placeholder="E036, M001, marmita, ptap…" autocomplete="off">
     <button class="btn" id="bgo" type="button">Buscar</button></div></div><div id="bres" class="res"></div>`;
 }
 function activarBuscador() {
