@@ -505,6 +505,8 @@ async function calcInd() {
   const maxT = Math.max(1, ...D.tecnicos.map(t => t.total));
   box.innerHTML = `<div class="col" style="gap:18px">
     <b style="font-size:18px">A · Cumplimiento del plan <span class="muted">(${esc(D.periodo.desde)} a ${esc(D.periodo.hasta)}, tareas quincenales y mensuales)</span></b>
+    ${T.prog === 0 ? `<div class="note n-o">No hay programación cargada para este periodo. El cumplimiento se calcula contra la matriz de PLAN, que hoy empieza en la quincena en que se hizo la migración.
+      Para reconstruir periodos anteriores ejecuta en el libro <b>Mantenimiento › Programar quincenas pasadas</b> desde la quincena que necesites (por ejemplo Q01-2026). Las secciones B y C (fallas y técnicos) sí usan todo el histórico.</div>` : ''}
     <div class="kpis"><div class="kpi"><span>Cumplimiento</span><b>${pct(T.AT + T.EX, T.prog)} %</b><span class="muted">(AT + EX) / programadas · ${T.prog} programadas</span></div>
       <div class="kpi"><span>Oportunidad</span><b>${pct(T.AT, T.prog)} %</b><span class="muted">a tiempo / programadas</span></div>
       <div class="kpi"><span>No ejecutadas</span><b style="color:var(--ne)">${T.NE}</b><span class="muted">NE · ${T.JU} justificadas (JU)</span></div>
@@ -520,9 +522,6 @@ async function calcInd() {
     <div class="card scroll" style="max-height:320px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
       ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div>
 
-    <div class="row" style="justify-content:space-between;flex-wrap:wrap"><b style="font-size:16px">Tareas vencidas por subsanar (${D.subsanar.length}) <span class="muted">· ventana de ${D.ventana} quincenas, quincena actual ${esc(D.quincenaActual)}</span></b>
-      <select class="in" id="subTec" style="width:240px"><option value="">Todos los técnicos</option>${[...new Set(D.subsanar.map(x => x.tecnico))].sort().map(t => `<option>${esc(t)}</option>`).join('')}</select></div>
-    <div class="card scroll" style="max-height:380px"><table><thead><tr><th>Código</th><th>Equipo / área</th><th>Actividad</th><th>Programada</th><th>Se cierra NE</th><th>Asignado a</th><th>Estado</th></tr></thead><tbody id="subBody"></tbody></table></div>
 
     <b style="font-size:18px">B · Fallas y correctivos</b>
     <div class="kpis"><div class="kpi"><span>Correctivos</span><b>${F.correctivos}</b><span class="muted">en el periodo</span></div>
@@ -543,18 +542,6 @@ async function calcInd() {
         <td>${Math.round(t.min / 60)}</td><td>${pct(t.foto, t.total)} %</td>
         <td>${t.avance == null ? '<span class="muted">—</span>' : `<span class="chip ${t.avance >= 90 ? 'c-at' : t.avance >= 75 ? 'c-ex' : 'c-ne'}">${t.avance} %</span> <span class="muted">de ${t.asignadas}</span>`}</td></tr>`).join('')}</tbody></table></div>
     <span class="muted">El cumplimiento solo existe desde que la programación se lleva en el sistema nuevo; los registros del histórico alimentan fallas y técnicos.</span></div>`;
-  const pintaSub = () => {
-    const t = document.getElementById('subTec').value;
-    document.getElementById('subBody').innerHTML = D.subsanar.filter(x => !t || x.tecnico === t).map(x => `<tr class="click" data-cod="${esc(x.activo)}">
-      <td class="code" style="font-size:12px">${esc(x.codigo)}</td><td><span class="code">${esc(x.activo)}</span> ${esc(x.nombreActivo)} ${x.clase ? chipC(x.clase) : ''}</td>
-      <td>${esc(x.descripcion)}</td><td class="code" style="font-size:12px">${esc(x.porIntervalo ? 'venció ' + x.vence : x.quincena)}</td>
-      <td class="code" style="font-size:12px">${esc(x.cierraNE || 'sigue pendiente')}</td><td>${esc(x.tecnico)}</td>
-      <td>${x.justificacion ? '<span class="chip c-gr">Justificada</span>' : '<span class="chip c-ex">Por subsanar</span>'}</td></tr>`).join('')
-      || '<tr><td colspan="7" class="muted">No hay tareas vencidas pendientes. Si esperabas verlas, ejecuta en el libro «Mantenimiento › Programar quincenas pasadas».</td></tr>';
-    document.querySelectorAll('#subBody tr[data-cod]').forEach(tr => tr.onclick = () => abrirFicha(tr.dataset.cod, 'plan'));
-  };
-  document.getElementById('subTec').onchange = pintaSub;
-  pintaSub();
 }
 
 /* ---------- Nuevo equipo ---------- */
