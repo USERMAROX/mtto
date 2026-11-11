@@ -106,7 +106,7 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v5 · 2026-11-11';
+const VERSION = 'v6 · 2026-11-11';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -239,24 +239,47 @@ async function vistaInicio() {
       Escanear código QR</button>
     ${S.tec.permisos.gestionar || S.tec.permisos.anular ? `<a class="btn outline" href="./gestion.html" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Gestión: equipos, planes, asignación y criticidad</a>` : ''}
     <div id="avanceCard" class="card"><span class="muted">Cargando tu avance…</span></div>
+    <div id="misTareas" style="display:flex;flex-direction:column;gap:10px"></div>
     ${buscadorHTML()}
     <span class="muted center" style="display:block">${VERSION}</span></div>`;
   document.getElementById('scan').onclick = abrirEscaner;
   activarBuscador();
   try {
     const r = await api('avance');
-    S.motivos = r.motivos || [];
+    S.motivos = r.motivos || []; S.qAct = r.quincena.etiqueta;
     const m = r.mio;
     document.getElementById('avanceCard').innerHTML = `
       <div class="row"><span class="sec pr" style="margin:0">Mi avance · ${esc(r.quincena.etiqueta)}</span><span class="muted">${esc(r.quincena.inicio)} a ${esc(r.quincena.fin)}</span></div>
       <div class="row" style="align-items:flex-end"><span class="kpi">${m.pct}%</span><span class="muted">${m.hechas} de ${m.total} tareas asignadas</span></div>
       <div class="pbar"><i style="width:${m.pct}%"></i></div>
       ${m.vencidas.length ? `<span style="font-size:13px;color:var(--ex)">${m.vencidas.length} tarea(s) vencidas de quincenas anteriores aún subsanables</span>` : ''}
-      <button type="button" class="btn outline" id="verAv">Ver mis tareas${r.equipo ? ' y avance del equipo' : ''}</button>`;
+      <button type="button" class="btn outline" id="verAv">${r.equipo ? 'Ver avance del equipo y tareas hechas' : 'Ver tareas hechas'}</button>`;
     document.getElementById('verAv').onclick = () => vistaAvance(r);
+    const pend = m.vencidas.concat(m.items.filter(t => !t.hecha));
+    document.getElementById('misTareas').innerHTML = `<span class="sec pr">Mis tareas pendientes (${pend.length})</span>` + (pend.length ? listaEjecutable(pend) : '<div class="empty">No tienes tareas pendientes asignadas en esta quincena.</div>');
+    document.querySelectorAll('[data-ej]').forEach(b => b.onclick = () => ejecutarTarea(b.dataset.act, b.dataset.ej));
   } catch (e) {
     if (!e.manejado) document.getElementById('avanceCard').innerHTML = `<span class="muted">No se pudo cargar el avance: ${esc(e.message)}</span>`;
   }
+}
+
+function listaEjecutable(items) {
+  const por = {}, ord = c => ({ C1: 1, C2: 2, C3: 3, C4: 4 }[c] || 5);
+  items.forEach(t => (por[t.activo] = por[t.activo] || []).push(t));
+  return Object.keys(por).sort((x, y) => ord(por[x][0].clase) - ord(por[y][0].clase) || x.localeCompare(y)).map(cod => {
+    const ts = por[cod];
+    return `<div class="card"><div><span class="code">${esc(cod)}</span> <span style="font-weight:600">${esc(ts[0].nombreActivo)}</span> ${chipClase(ts[0].clase)}</div>
+      ${ts.map(t => `<div style="border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px">
+        <div class="row"><span class="code" style="font-size:13px">${esc(t.codigo)}</span>${t.quincena !== S.qAct ? '<span class="chip ex">Vencida</span>' : ''}</div>
+        <span style="font-size:14px">${esc(t.descripcion)}</span>
+        <span class="muted">${esc(t.frecuencia)}${t.vence ? ' · vence ' + esc(t.vence) : ''}</span>
+        ${t.justificacion ? `<span style="font-size:13px;color:#4B3A80">Justificada: ${esc(t.justificacion)}</span>` : ''}
+        <button type="button" class="btn" style="min-height:42px" data-ej="${esc(t.codigo)}" data-act="${esc(cod)}">Ejecutar</button></div>`).join('')}</div>`;
+  }).join('');
+}
+function ejecutarTarea(cod, codigo) {
+  S.a = cod; S.k = ''; S.pendienteCodigo = codigo; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
+  setURL(cod); cargarActivo();
 }
 
 /* ---------- Avance ---------- */
@@ -464,7 +487,11 @@ function irActivo(cod) {
 /* ---------- Activo y pendientes ---------- */
 async function cargarActivo() {
   cargando('Cargando ' + S.a + '…');
-  try { S.data = await api('activo'); S.confirmado = S.data.modo === 'QR'; vistaActivo(); }
+  try {
+    S.data = await api('activo'); S.confirmado = S.data.modo === 'QR';
+    if (S.confirmado && S.pendienteCodigo && tareaPorCodigo(S.pendienteCodigo)) { const c = S.pendienteCodigo; S.pendienteCodigo = ''; return abrirForm(c); }
+    vistaActivo();
+  }
   catch (e) { if (!e.manejado) vistaError(e.message); }
 }
 const TIPO_DOC = { CERT_SANITARIO: 'Certificado sanitario', FICHA_TECNICA: 'Ficha técnica', MANUAL: 'Manual', OTRO: 'Documento' };
@@ -486,7 +513,7 @@ function cabecera(tab) {
     <button role="tab" type="button" aria-selected="${tab === 'h'}" onclick="abrirHojaVida()">Hoja de vida</button></div>`;
 }
 function tarjeta(p, tipo) {
-  const ok = S.data.puedeRegistrar;
+  const ok = S.data.modo === 'ASIGNADO' ? p.mia : S.data.puedeRegistrar;
   const cls = tipo === 'venc' ? 'ex' : tipo === 'int' ? 'outline' : '';
   const det = p.logica === 'INTERVALO'
       ? `${esc(p.frecuencia)} · última: ${esc(p.ultima || 'sin registro')} · ${p.vencida ? 'venció' : 'vence'} el ${esc(p.vence)}`
@@ -509,12 +536,17 @@ function vistaActivo() {
     app.innerHTML = cabecera('p') + `<div class="wrap pad"><div class="note info" style="display:flex;flex-direction:column;gap:12px">
       <b style="font-size:15px">Entraste sin escanear el QR. Confirma que estás frente a este ${d.activo.tipo === 'AREA' ? 'área' : 'equipo'} (revisa la foto y el nombre).</b>
       <div class="seg"><button type="button" id="siEs" aria-pressed="true">Sí, es este</button><button type="button" id="noEs" aria-pressed="false">No, buscar otro</button></div></div></div>`;
-    document.getElementById('siEs').onclick = () => { S.confirmado = true; vistaActivo(); };
-    document.getElementById('noEs').onclick = () => { S.a = ''; S.k = ''; setURL(); vistaInicio(); };
+    document.getElementById('siEs').onclick = () => {
+      S.confirmado = true;
+      const c = S.pendienteCodigo; S.pendienteCodigo = '';
+      if (c && tareaPorCodigo(c)) abrirForm(c); else vistaActivo();
+    };
+    document.getElementById('noEs').onclick = () => { S.a = ''; S.k = ''; S.pendienteCodigo = ''; setURL(); vistaInicio(); };
     return;
   }
   app.innerHTML = cabecera('p') + `<div class="wrap pad">
     ${d.modo === 'MANUAL' ? `<div class="note info">Acceso manual, sin QR. Los registros quedarán marcados como manuales.</div>` : ''}
+    ${d.modo === 'ASIGNADO' ? `<div class="note info">Sin QR puedes ejecutar las tareas que tienes asignadas en este equipo. Para correctivos u otras tareas, escanea su QR.</div>` : ''}
     ${d.modo === 'CONSULTA' ? `<div class="note warn">Para registrar, escanea el código QR del equipo (botón en Inicio). Desde aquí solo puedes consultar.</div>` : ''}
     <div class="qband"><div class="row"><span class="code" style="font-size:18px">${esc(d.quincena.etiqueta)}</span>
       <span style="font-size:13px">${esc(d.quincena.inicio)} a ${esc(d.quincena.fin)}</span></div>
@@ -528,7 +560,7 @@ function vistaActivo() {
       <div><span class="code" style="font-size:13px">${esc(e.codigo)}</span><div class="muted">${esc(e.fecha)} · ${esc(e.tecnico)}</div></div>
       ${chip(e.cumplimiento) || '<span class="chip gr">Correctivo</span>'}</div></div>`).join('') : '<div class="empty">Aún no hay registros en esta quincena.</div>'}
   </div>
-  ${d.puedeRegistrar ? `<div class="foot"><div class="wrap"><button type="button" class="btn big" onclick="abrirForm('1')">+ Registrar correctivo</button></div></div>` : ''}`;
+  ${d.puedeCorrectivo ? `<div class="foot"><div class="wrap"><button type="button" class="btn big" onclick="abrirForm('1')">+ Registrar correctivo</button></div></div>` : ''}`;
   window.scrollTo(0, 0);
 }
 function tareaPorCodigo(codigo) {
