@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#16191D">
 <title>Dejamu · Mantenimiento</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -73,6 +76,19 @@ textarea.in{resize:vertical}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;max-width:90vw;z-index:20}
 .hidden{display:none!important}
+.chip.ju{background:#E8E3F5;color:#4B3A80}
+.hero{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 16px}
+.scanbtn{min-height:64px;font-size:18px;display:flex;align-items:center;justify-content:center;gap:10px}
+.kpi{font-size:40px;font-weight:700;line-height:1}
+.pbar{height:10px;background:#E4E7EB;border-radius:5px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--primary)}
+.cam{position:fixed;inset:0;background:#000;z-index:30;display:flex;flex-direction:column}
+.cam video{flex:1;width:100%;object-fit:cover}
+.cam .marco{position:absolute;left:50%;top:45%;width:240px;height:240px;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:16px;box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
+.cam .bar2{position:absolute;left:0;right:0;bottom:0;padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;align-items:center;color:#fff;text-align:center}
+.tabla{width:100%;border-collapse:collapse;font-size:14px}.tabla td,.tabla th{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.tabla th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tabla tr.sel{cursor:pointer}.tabla tr.sel:hover{background:#F7F8FA}
+select.in{appearance:auto}
 .chip.mine{background:var(--primary-soft);color:var(--primary)}
 .search{display:flex;gap:8px}.search .in{flex:1}.search .btn{width:auto}
 .res{display:flex;flex-direction:column;gap:8px}
@@ -80,21 +96,21 @@ textarea.in{resize:vertical}
 </style>
 </head>
 <body>
-<div class="top"><b>DEJAMU · MANTENIMIENTO</b><button id="salir" class="hidden" type="button">Salir</button></div>
+<div class="top"><b>DEJAMU · MANTENIMIENTO</b><span style="display:flex;gap:18px"><button id="inicio" class="hidden" type="button">Inicio</button><button id="salir" class="hidden" type="button">Salir</button></span></div>
 <main id="app" aria-live="polite"></main>
 <div id="toast" class="toast hidden" role="status"></div>
-
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
+const VERSION = 'v3 · 2026-11-11';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
-            hv: { filtro: 'TODO', pagina: 0, items: [], total: 0 } };
+            hv: { filtro: 'TODO', pagina: 0, items: [], total: 0 }, motivos: [] };
 const app = document.getElementById('app');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const chip = c => c === 'AT' ? '<span class="chip at">AT · a tiempo</span>' : c === 'EX' ? '<span class="chip ex">EX · extemporánea</span>'
-                 : c === 'NE' ? '<span class="chip ne">NE · no ejecutada</span>' : '';
+                 : c === 'NE' ? '<span class="chip ne">NE · no ejecutada</span>' : c === 'JU' ? '<span class="chip ju">JU · justificada</span>' : '';
 
 function toast(msg) {
   const t = document.getElementById('toast');
@@ -102,41 +118,49 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 4000);
 }
 function cargando(txt) { app.innerHTML = `<div class="wrap pad center"><div class="spin" aria-hidden="true"></div><span class="muted">${esc(txt || 'Cargando…')}</span></div>`; }
+function setURL(a, k) {
+  try { history.replaceState(null, '', location.pathname + (a ? '?a=' + encodeURIComponent(a) + (k ? '&k=' + encodeURIComponent(k) : '') : '')); } catch (e) {}
+}
+function barraSesion(on) {
+  document.getElementById('salir').classList.toggle('hidden', !on);
+  document.getElementById('inicio').classList.toggle('hidden', !on);
+}
 
 /* ---------- Sesión Google ---------- */
 function jwtExp(t) { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch (e) { return 0; } }
-function guardarToken(t) { S.token = t; try { sessionStorage.setItem('mtto_t', t); } catch (e) {} }
-function tokenGuardado() { try { const t = sessionStorage.getItem('mtto_t'); return t && jwtExp(t) > Date.now() + 60000 ? t : null; } catch (e) { return null; } }
+function guardarToken(t) { S.token = t; try { localStorage.setItem('mtto_t', t); } catch (e) {} }
+function tokenGuardado() { try { const t = localStorage.getItem('mtto_t'); return t && jwtExp(t) > Date.now() + 60000 ? t : null; } catch (e) { return null; } }
 function salir() {
-  try { sessionStorage.removeItem('mtto_t'); } catch (e) {}
+  try { localStorage.removeItem('mtto_t'); } catch (e) {}
   S.token = null; S.tec = null;
   if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
   vistaLogin();
 }
 document.getElementById('salir').onclick = salir;
+document.getElementById('inicio').onclick = () => { S.a = ''; S.k = ''; setURL(); vistaInicio(); };
 
 function vistaLogin(msg) {
-  document.getElementById('salir').classList.add('hidden');
+  barraSesion(false);
   app.innerHTML = `<div class="wrap pad">
-    ${S.a ? `<div class="card" style="padding:20px"><span class="muted">Activo escaneado</span>
-      <span class="code" style="font-size:28px">${esc(S.a)}</span></div>` :
-      `<div class="note info">Escanea el código QR de un equipo o área para ver sus tareas y registrar.</div>`}
+    ${S.a ? `<div class="card" style="padding:20px"><span class="muted">Activo</span><span class="code" style="font-size:28px">${esc(S.a)}</span></div>` : ''}
     ${msg ? `<div class="note err">${esc(msg)}</div>` : ''}
     <p style="margin:0;font-size:15px;line-height:1.5">Inicia sesión con tu cuenta Google autorizada.</p>
     <div id="gbtn" style="min-height:44px;display:flex;justify-content:center"></div>
-    <div class="note info">Solo técnicos registrados y activos. Cada acceso queda registrado.</div></div>`;
+    <div class="note info">Solo técnicos registrados y activos. Cada acceso queda registrado.</div>
+    <span class="muted center" style="display:block">${VERSION}</span></div>`;
   const pintar = () => {
     if (!(window.google && google.accounts && google.accounts.id)) return setTimeout(pintar, 200);
     google.accounts.id.initialize({ client_id: CLIENT_ID, callback: r => { guardarToken(r.credential); iniciar(); },
                                     auto_select: true, cancel_on_tap_outside: false });
     google.accounts.id.renderButton(document.getElementById('gbtn'),
       { theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 300, locale: 'es' });
+    google.accounts.id.prompt();
   };
   pintar();
 }
 
 function vistaDenegado(msg) {
-  document.getElementById('salir').classList.add('hidden');
+  barraSesion(false);
   app.innerHTML = `<div class="wrap pad center" style="padding-top:48px">
     <div style="width:72px;height:72px;border-radius:36px;background:var(--ne-soft);display:flex;align-items:center;justify-content:center">
       <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8E1F1F" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
@@ -154,15 +178,15 @@ async function api(accion, datos) {
   for (let intento = 0; intento < 2; intento++) {
     try { res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }); break; }
     catch (e) {
-      if (intento === 1) throw new Error('No se pudo conectar con el servidor. Revisa la conexión a internet e intenta de nuevo.');
+      if (intento === 1) throw new Error('No se pudo conectar con el servidor. Revisa la conexión e intenta de nuevo.');
       await new Promise(r => setTimeout(r, 1500));
     }
   }
   const j = await res.json();
   if (!j.ok) {
     if (j.code === 'NO_AUTORIZADO') {
-      if (/no está autorizada/.test(j.error)) { vistaDenegado(j.error); }
-      else { try { sessionStorage.removeItem('mtto_t'); } catch (e) {} vistaLogin('Tu sesión venció. Inicia sesión de nuevo.'); }
+      if (/no está autorizada/.test(j.error)) vistaDenegado(j.error);
+      else { try { localStorage.removeItem('mtto_t'); } catch (e) {} vistaLogin('Tu sesión venció. Inicia sesión de nuevo.'); }
       throw Object.assign(new Error(j.error), { manejado: true });
     }
     throw new Error(j.error || 'Error del servidor');
@@ -175,20 +199,153 @@ async function iniciar() {
   try {
     const s = await api('sesion');
     S.tec = s.tecnico;
-    document.getElementById('salir').classList.remove('hidden');
-    if (!S.a) return vistaSinActivo();
-    await cargarActivo();
+    barraSesion(true);
+    if (S.a) await cargarActivo(); else vistaInicio();
   } catch (e) { if (!e.manejado) vistaError(e.message); }
 }
-
 function vistaError(msg) {
   app.innerHTML = `<div class="wrap pad"><div class="note err">${esc(msg)}</div>
     <button class="btn" type="button" onclick="location.reload()">Reintentar</button></div>`;
 }
 
+/* ---------- Inicio ---------- */
+async function vistaInicio() {
+  app.innerHTML = `<div class="wrap pad">
+    <span class="muted">Hola, <b>${esc(S.tec.nombre)}</b> · ${esc(S.tec.rol)}</span>
+    <button type="button" class="btn scanbtn" id="scan">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>
+      Escanear código QR</button>
+    <div id="avanceCard" class="card"><span class="muted">Cargando tu avance…</span></div>
+    ${buscadorHTML()}
+    <span class="muted center" style="display:block">${VERSION}</span></div>`;
+  document.getElementById('scan').onclick = abrirEscaner;
+  activarBuscador();
+  try {
+    const r = await api('avance');
+    S.motivos = r.motivos || [];
+    const m = r.mio;
+    document.getElementById('avanceCard').innerHTML = `
+      <div class="row"><span class="sec pr" style="margin:0">Mi avance · ${esc(r.quincena.etiqueta)}</span><span class="muted">${esc(r.quincena.inicio)} a ${esc(r.quincena.fin)}</span></div>
+      <div class="row" style="align-items:flex-end"><span class="kpi">${m.pct}%</span><span class="muted">${m.hechas} de ${m.total} tareas asignadas</span></div>
+      <div class="pbar"><i style="width:${m.pct}%"></i></div>
+      ${m.vencidas.length ? `<span style="font-size:13px;color:var(--ex)">${m.vencidas.length} tarea(s) vencidas de quincenas anteriores aún subsanables</span>` : ''}
+      <button type="button" class="btn outline" id="verAv">Ver mis tareas${r.equipo ? ' y avance del equipo' : ''}</button>`;
+    document.getElementById('verAv').onclick = () => vistaAvance(r);
+  } catch (e) {
+    if (!e.manejado) document.getElementById('avanceCard').innerHTML = `<span class="muted">No se pudo cargar el avance: ${esc(e.message)}</span>`;
+  }
+}
+
+/* ---------- Avance ---------- */
+function listaTareasAvance(items, mostrarHechas) {
+  const porActivo = {};
+  items.forEach(t => (porActivo[t.activo] = porActivo[t.activo] || []).push(t));
+  return Object.keys(porActivo).sort().map(cod => {
+    const ts = porActivo[cod];
+    return `<div class="card"><div class="row"><div><span class="code">${esc(cod)}</span> <span style="font-weight:500">${esc(ts[0].nombreActivo)}</span></div>
+      <button type="button" class="btn ghost" style="width:auto;min-height:36px;font-size:14px" data-ir="${esc(cod)}">Abrir</button></div>
+      ${ts.map(t => `<div class="row" style="border-top:1px solid var(--line);padding-top:8px">
+        <div style="min-width:0"><span class="code" style="font-size:13px">${esc(t.codigo)}</span>
+        <div style="font-size:14px">${esc(t.descripcion)}</div>
+        <div class="muted">${esc(t.frecuencia)} · ${esc(t.quincena)}${t.vence ? ' · vence ' + esc(t.vence) : ''}${t.hecha && t.ejecutor ? ' · por ' + esc(t.ejecutor) : ''}</div>
+        ${t.justificacion ? `<div style="font-size:13px;color:#4B3A80">Justificada: ${esc(t.justificacion)}</div>` : ''}</div>
+        ${t.hecha ? (chip(t.cumplimiento) || '<span class="chip at">Hecha</span>') : '<span class="chip gr">Pendiente</span>'}</div>`).join('')}</div>`;
+  }).join('') || '<div class="empty">Sin tareas.</div>';
+}
+function vistaAvance(r, sel) {
+  const m = sel ? r.detalle : r.mio;
+  const pend = m.items.filter(t => !t.hecha), hechas = m.items.filter(t => t.hecha);
+  app.innerHTML = `<div class="wrap pad">
+    <button type="button" class="btn ghost" style="width:auto;min-height:40px" id="volver">← Inicio</button>
+    <div class="card"><span class="sec pr" style="margin:0">${sel ? 'Avance de ' + esc(sel) : 'Mi avance'} · ${esc(r.quincena.etiqueta)}</span>
+      <div class="row" style="align-items:flex-end"><span class="kpi">${m.pct}%</span><span class="muted">${m.hechas} de ${m.total} tareas</span></div>
+      <div class="pbar"><i style="width:${m.pct}%"></i></div></div>
+    ${r.equipo && !sel ? `<span class="sec gr">Avance del equipo · toca un técnico para ver su detalle</span>
+      <div class="card" style="padding:0;overflow-x:auto"><table class="tabla"><tr><th>Técnico</th><th>Hechas</th><th>%</th><th>Vencidas</th></tr>
+      ${r.equipo.map(e => `<tr class="sel" data-tec="${esc(e.tecnico)}"><td>${esc(e.tecnico)}</td><td>${e.hechas}/${e.total}</td>
+        <td><span class="chip ${e.pct >= 90 ? 'at' : e.pct >= 75 ? 'ex' : 'ne'}">${e.pct}%</span></td><td>${e.vencidas}</td></tr>`).join('')}</table></div>` : ''}
+    ${m.vencidas.length ? `<span class="sec ex">Vencidas de quincenas anteriores (${m.vencidas.length})</span>${listaTareasAvance(m.vencidas)}` : ''}
+    <span class="sec pr">Pendientes (${pend.length})</span>${listaTareasAvance(pend)}
+    <details><summary style="cursor:pointer;font-weight:600;font-size:14px">Hechas (${hechas.length})</summary>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${listaTareasAvance(hechas)}</div></details>
+  </div>`;
+  document.getElementById('volver').onclick = sel ? () => vistaAvance(r) : vistaInicio;
+  app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => irActivo(b.dataset.ir));
+  app.querySelectorAll('[data-tec]').forEach(tr => tr.onclick = async () => {
+    cargando('Cargando avance de ' + tr.dataset.tec + '…');
+    try { const d = await api('avance', { tecnico: tr.dataset.tec }); vistaAvance(d, tr.dataset.tec); }
+    catch (e) { if (!e.manejado) vistaError(e.message); }
+  });
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Escáner QR ---------- */
+let camStream = null, camLoop = null;
+async function abrirEscaner() {
+  const ov = document.createElement('div');
+  ov.className = 'cam';
+  ov.innerHTML = `<video id="vid" playsinline muted></video><div class="marco" aria-hidden="true"></div>
+    <div class="bar2"><span id="camMsg">Apunta al código QR del equipo</span>
+    <button type="button" class="btn ghost" id="camX" style="max-width:320px">Cancelar</button></div>`;
+  document.body.appendChild(ov);
+  const cerrar = () => { cancelAnimationFrame(camLoop); if (camStream) camStream.getTracks().forEach(t => t.stop()); camStream = null; ov.remove(); };
+  document.getElementById('camX').onclick = cerrar;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    document.getElementById('camMsg').textContent = 'No se pudo abrir la cámara. Revisa el permiso de cámara del navegador.';
+    return;
+  }
+  const v = document.getElementById('vid');
+  v.srcObject = camStream; await v.play();
+  let detectar;
+  if ('BarcodeDetector' in window) {
+    const bd = new BarcodeDetector({ formats: ['qr_code'] });
+    detectar = async () => { const r = await bd.detect(v); return r[0] && r[0].rawValue; };
+  } else {
+    await cargarJsQR();
+    const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently: true });
+    detectar = async () => {
+      if (!v.videoWidth) return null;
+      c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v, 0, 0);
+      const r = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+      return r && r.data;
+    };
+  }
+  const paso = async () => {
+    if (!camStream) return;
+    try {
+      const txt = await detectar();
+      if (txt && procesarQR(txt)) { cerrar(); return; }
+      if (txt) document.getElementById('camMsg').textContent = 'Ese QR no es de un equipo Dejamu';
+    } catch (e) {}
+    camLoop = requestAnimationFrame(paso);
+  };
+  paso();
+}
+function cargarJsQR() {
+  return new Promise((ok, mal) => {
+    if (window.jsQR) return ok();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    s.onload = ok; s.onerror = mal; document.head.appendChild(s);
+  });
+}
+function procesarQR(txt) {
+  let a = '', k = '';
+  try { const u = new URL(txt); a = (u.searchParams.get('a') || '').toUpperCase(); k = u.searchParams.get('k') || ''; }
+  catch (e) { if (/^[EA]\s*\d{1,4}$/i.test(txt.trim())) a = txt.trim().toUpperCase(); }
+  if (!a) return false;
+  if (navigator.vibrate) navigator.vibrate(80);
+  S.a = a; S.k = k; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
+  setURL(a, k); cargarActivo();
+  return true;
+}
+
+/* ---------- Buscador manual ---------- */
 function buscadorHTML() {
-  return `<div><label class="f" for="bq">Buscar equipo o área sin QR</label>
-    <div class="search"><input id="bq" class="in" placeholder="Código, nombre o sector (E036, marmita, ptap)" autocomplete="off">
+  return `<div><label class="f" for="bq">Buscar equipo o área por código o nombre</label>
+    <div class="search"><input id="bq" class="in" placeholder="E036, marmita, ptap…" autocomplete="off">
     <button class="btn" id="bgo" type="button">Buscar</button></div></div><div id="bres" class="res"></div>`;
 }
 function activarBuscador() {
@@ -212,17 +369,7 @@ function activarBuscador() {
 }
 function irActivo(cod) {
   S.a = cod; S.k = ''; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
-  try { history.replaceState(null, '', location.pathname + '?a=' + encodeURIComponent(cod)); } catch (e) {}
-  cargarActivo();
-}
-
-function vistaSinActivo() {
-  app.innerHTML = `<div class="wrap pad">
-    <div class="note info">Sesión iniciada como <b>${esc(S.tec.nombre)}</b>. Escanea el QR de un equipo o búscalo aquí.</div>
-    ${buscadorHTML()}
-    <p class="muted" style="margin:0">${S.tec.permisos.anular ? 'Como supervisor puedes registrar sin QR; el registro quedará marcado como manual.'
-      : 'Sin escanear el QR puedes consultar, pero para registrar debes escanear el código del equipo.'}</p></div>`;
-  activarBuscador();
+  setURL(cod); cargarActivo();
 }
 
 /* ---------- Activo y pendientes ---------- */
@@ -231,35 +378,32 @@ async function cargarActivo() {
   try { S.data = await api('activo'); vistaActivo(); }
   catch (e) { if (!e.manejado) vistaError(e.message); }
 }
-
 function cabecera(tab) {
   const a = S.data.activo;
   return `<div class="head"><div class="row"><span class="code">${esc(a.codigo)}</span>
       <span class="chip ${a.estado === 'ACTIVO' ? 'at' : 'gr'}">${esc(a.estado || '')}</span></div>
     <span class="name">${esc(a.nombre)}</span>
-    <span class="muted">${a.sector ? esc(a.sector) + ' · ' : ''}Responsable: ${esc(a.responsable || 'sin asignar')}</span>
-    <span class="muted">Sesión: <b>${esc(S.tec.nombre)}</b> · ${esc(S.tec.rol)}</span></div>
+    ${a.sector ? `<span class="muted">${esc(a.sector)}</span>` : ''}
+    <span class="muted">Sesión: <b>${esc(S.tec.nombre)}</b> · ${esc(S.tec.rol)} · ${S.data.modo === 'QR' ? 'acceso por QR' : S.data.modo === 'MANUAL' ? 'acceso manual' : 'solo consulta'}</span></div>
   <div class="tabs" role="tablist">
     <button role="tab" type="button" aria-selected="${tab === 'p'}" onclick="vistaActivo()">Pendientes</button>
     <button role="tab" type="button" aria-selected="${tab === 'h'}" onclick="abrirHojaVida()">Hoja de vida</button></div>`;
 }
-
 function tarjeta(p, tipo) {
   const ok = S.data.puedeRegistrar;
   const cls = tipo === 'venc' ? 'ex' : tipo === 'int' ? 'outline' : '';
-  const det = tipo === 'venc' ? `Programada ${esc(p.quincena)} · se cierra como NE al terminar ${esc(p.cierraNE || '')}`
-            : tipo === 'int' ? `${esc(p.frecuencia)} · última: ${esc(p.ultima || 'sin registro')} · vence ${esc(p.vence)}`
-            : esc(p.frecuencia);
-  const asig = p.mia ? '<span class="chip mine">Asignada a ti</span>'
-             : `<span class="chip gr">${esc(p.asignado ? 'Asignada a ' + p.asignado : 'Sin asignar')}</span>`;
+  const det = p.logica === 'INTERVALO'
+      ? `${esc(p.frecuencia)} · última: ${esc(p.ultima || 'sin registro')} · ${p.vencida ? 'venció' : 'vence'} el ${esc(p.vence)}`
+      : tipo === 'venc' ? `${esc(p.frecuencia)} · programada ${esc(p.quincena)} · se cierra como NE al terminar ${esc(p.cierraNE)}`
+      : esc(p.frecuencia);
   return `<div class="card" ${tipo === 'venc' ? 'style="border-color:var(--ex-line)"' : ''}>
     <div class="row"><span class="code">${esc(p.codigo)}</span>${tipo === 'venc' ? '<span class="chip ex">Vencida</span>' : ''}</div>
     <span style="font-size:15px;font-weight:500">${esc(p.descripcion)}</span>
     <span class="muted">${det}</span>
-    <div>${asig}</div>
-    ${ok ? `<button type="button" class="btn ${cls}" onclick='abrirForm(${JSON.stringify(p.codigo)})'>Ejecutar${tipo === 'venc' ? ' (se registra EX)' : ''}</button>` : ''}</div>`;
+    ${p.justificacion ? `<span style="font-size:13px;color:#4B3A80">Justificada: ${esc(p.justificacion)}</span>` : ''}
+    ${ok ? `<button type="button" class="btn ${cls}" onclick='abrirForm(${JSON.stringify(p.codigo)})'>Ejecutar${tipo === 'venc' ? ' (se registra EX)' : ''}</button>
+      ${!p.justificacion ? `<button type="button" class="btn ghost" style="min-height:40px;font-size:14px" onclick='abrirJustificar(${JSON.stringify(p.codigo)})'>No se pudo ejecutar</button>` : ''}` : ''}</div>`;
 }
-
 function vistaActivo() {
   const d = S.data, p = d.pendientes;
   const pct = d.resumen.programadas ? Math.round(100 * d.resumen.ejecutadas / d.resumen.programadas) : 0;
@@ -267,7 +411,7 @@ function vistaActivo() {
     (lista.length ? lista.map(x => tarjeta(x, tipo)).join('') : `<div class="empty">${vacio}</div>`);
   app.innerHTML = cabecera('p') + `<div class="wrap pad">
     ${d.modo === 'MANUAL' ? `<div class="note info">Acceso manual, sin QR. Los registros quedarán marcados como manuales.</div>` : ''}
-    ${d.modo === 'CONSULTA' ? `<div class="note warn">Para registrar actividades escanea el código QR pegado en el equipo. Desde aquí solo puedes consultar.</div>` : ''}
+    ${d.modo === 'CONSULTA' ? `<div class="note warn">Para registrar, escanea el código QR del equipo (botón en Inicio). Desde aquí solo puedes consultar.</div>` : ''}
     <div class="qband"><div class="row"><span class="code" style="font-size:18px">${esc(d.quincena.etiqueta)}</span>
       <span style="font-size:13px">${esc(d.quincena.inicio)} a ${esc(d.quincena.fin)}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
@@ -279,19 +423,19 @@ function vistaActivo() {
     ${d.ejecutadas.length ? d.ejecutadas.map(e => `<div class="card" style="padding:12px 14px"><div class="row">
       <div><span class="code" style="font-size:13px">${esc(e.codigo)}</span><div class="muted">${esc(e.fecha)} · ${esc(e.tecnico)}</div></div>
       ${chip(e.cumplimiento) || '<span class="chip gr">Correctivo</span>'}</div></div>`).join('') : '<div class="empty">Aún no hay registros en esta quincena.</div>'}
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;font-size:14px">Ir a otro equipo o área</summary>
-      <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px">${buscadorHTML()}</div></details>
   </div>
   ${d.puedeRegistrar ? `<div class="foot"><div class="wrap"><button type="button" class="btn big" onclick="abrirForm('1')">+ Registrar correctivo</button></div></div>` : ''}`;
-  activarBuscador();
   window.scrollTo(0, 0);
+}
+function tareaPorCodigo(codigo) {
+  const p = S.data.pendientes;
+  return [].concat(p.vencidas, p.actuales, p.intervalo).find(x => x.codigo === codigo);
 }
 
 /* ---------- Formulario de ejecución ---------- */
 let F = {};
 function abrirForm(codigo) {
-  const d = S.data, todas = [].concat(d.pendientes.vencidas, d.pendientes.actuales, d.pendientes.intervalo);
-  const t = codigo === '1' ? null : todas.find(x => x.codigo === codigo);
+  const d = S.data, t = codigo === '1' ? null : tareaPorCodigo(codigo);
   F = { codigo, tarea: t, foto: null, operativo: 'SI' };
   const ex = t && t.vencida;
   app.innerHTML = `<div class="head"><div class="row"><button type="button" class="btn ghost" style="width:auto;min-height:40px" onclick="vistaActivo()">← Volver</button>
@@ -300,11 +444,11 @@ function abrirForm(codigo) {
     ${t ? `<div class="card" ${ex ? 'style="border-color:var(--ex-line)"' : ''}><div class="row"><span class="code" style="font-size:18px">${esc(t.codigo)}</span>
         ${ex ? '<span class="chip ex">EX</span>' : ''}</div>
       <span style="font-size:15px;font-weight:500">${esc(t.descripcion)}</span>
-      ${ex ? `<span style="font-size:13px;color:var(--ex)">Programada en ${esc(t.quincena)}. Se registrará como extemporánea (subsanada).</span>` : ''}</div>`
+      ${ex ? `<span style="font-size:13px;color:var(--ex)">Vencida. Se registrará como extemporánea (subsanada).</span>` : ''}</div>`
       : `<div class="card"><span class="code" style="font-size:18px">Correctivo · código 1</span><span class="muted">${esc(d.activo.nombre)}</span></div>`}
     <div class="facts"><div><span>Tipo</span><b>${t ? 'Preventivo' : 'Correctivo'}</b></div>
       <div><span>Técnico (verificado)</span><b>${esc(S.tec.nombre)}</b></div>
-      <div><span>Asignada a</span><b>${esc(t ? t.asignado : '—')}</b></div>
+      <div><span>Activo</span><b>${esc(d.activo.codigo)}</b></div>
       <div><span>Fecha y hora</span><b>Las asigna el servidor</b></div></div>
     <div><label class="f" for="desc">${t ? 'Actividades ejecutadas' : 'Falla encontrada y trabajo realizado'} *</label>
       <textarea id="desc" class="in" rows="4" placeholder="Describe lo que hiciste"></textarea></div>
@@ -331,7 +475,6 @@ function abrirForm(codigo) {
   document.getElementById('guardar').onclick = guardar;
   window.scrollTo(0, 0);
 }
-
 function comprimir(file) {
   if (!file) return;
   const box = document.getElementById('fotoBox');
@@ -349,7 +492,6 @@ function comprimir(file) {
   img.onerror = () => { box.innerHTML = '<span class="muted">No se pudo leer la imagen. Intenta con otra.</span>'; };
   img.src = url;
 }
-
 async function guardar() {
   const v = id => document.getElementById(id).value.trim();
   const err = document.getElementById('ferr'), btn = document.getElementById('guardar');
@@ -372,6 +514,35 @@ async function guardar() {
   }
 }
 
+/* ---------- Justificar no ejecución ---------- */
+async function abrirJustificar(codigo) {
+  const t = tareaPorCodigo(codigo);
+  if (!S.motivos.length) { try { S.motivos = (await api('avance')).motivos || []; } catch (e) { if (e.manejado) return; } }
+  app.innerHTML = `<div class="head"><div class="row"><button type="button" class="btn ghost" style="width:auto;min-height:40px" onclick="vistaActivo()">← Volver</button>
+      <span class="code">${esc(S.data.activo.codigo)}</span></div></div>
+  <div class="wrap pad">
+    <div class="card"><span class="code" style="font-size:18px">${esc(t.codigo)}</span>
+      <span style="font-size:15px;font-weight:500">${esc(t.descripcion)}</span>
+      <span class="muted">La tarea seguirá pendiente: podrás ejecutarla después. En los indicadores contará como justificada (JU).</span></div>
+    <div><label class="f" for="mot">Motivo *</label>
+      <select id="mot" class="in"><option value="">Selecciona…</option>${S.motivos.map(m => `<option>${esc(m)}</option>`).join('')}</select></div>
+    <div><label class="f" for="obs">Explicación *</label><textarea id="obs" class="in" rows="3" placeholder="Qué pasó y qué se necesita para ejecutarla"></textarea></div>
+    <div id="jerr" class="note err hidden" role="alert"></div>
+  </div>
+  <div class="foot"><div class="wrap"><button type="button" class="btn ghost" onclick="vistaActivo()">Cancelar</button>
+    <button type="button" class="btn" id="jok">Guardar justificación</button></div></div>`;
+  document.getElementById('jok').onclick = async () => {
+    const mot = document.getElementById('mot').value, obs = document.getElementById('obs').value.trim();
+    const err = document.getElementById('jerr'), btn = document.getElementById('jok');
+    if (!mot) { err.textContent = 'Selecciona un motivo.'; return err.classList.remove('hidden'); }
+    if (obs.length < 5) { err.textContent = 'Explica brevemente por qué no se ejecutó.'; return err.classList.remove('hidden'); }
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try { await api('justificar', { codigo, motivo: mot, observacion: obs }); toast('Justificación guardada: ' + codigo); await cargarActivo(); }
+    catch (e) { if (e.manejado) return; btn.disabled = false; btn.textContent = 'Guardar justificación'; err.textContent = e.message; err.classList.remove('hidden'); }
+  };
+  window.scrollTo(0, 0);
+}
+
 /* ---------- Hoja de vida ---------- */
 async function abrirHojaVida(reset) {
   if (reset !== false) S.hv = { filtro: S.hv.filtro || 'TODO', pagina: 0, items: [], total: 0 };
@@ -382,7 +553,6 @@ async function abrirHojaVida(reset) {
     vistaHojaVida();
   } catch (e) { if (!e.manejado) vistaError(e.message); }
 }
-
 function vistaHojaVida() {
   const fil = [['TODO', 'Todo'], ['PREVENTIVOS', 'Preventivos'], ['CORRECTIVOS', 'Correctivos'], ['NE', 'No ejecutadas']];
   let mes = '';
@@ -413,10 +583,12 @@ function nombreMes(ym) {
 }
 
 /* ---------- Arranque ---------- */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 (function () {
   const t = tokenGuardado();
   if (t) { S.token = t; iniciar(); } else vistaLogin();
 })();
 </script>
+
 </body>
 </html>
