@@ -106,7 +106,7 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v6 · 2026-11-11';
+const VERSION = 'v7 · 2026-11-11';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -591,9 +591,13 @@ function abrirForm(codigo) {
     <div><label class="f" for="min">Tiempo empleado (minutos) *</label>
       <input id="min" class="in" type="number" inputmode="numeric" min="1" max="1439" placeholder="0"></div>
     <div><span class="f">Foto de evidencia ${!t ? '*' : '(opcional)'}</span>
-      <label class="photo" for="foto" id="fotoBox"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3D4450" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-        Tomar foto o elegir de galería</label>
-      <input id="foto" type="file" accept="image/*" capture="environment" class="hidden"></div>
+      <div class="photo" id="fotoBox"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3D4450" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <span>Sin foto seleccionada</span></div>
+      <div class="seg" style="margin-top:8px">
+        <label class="btn outline" for="fotoCam" style="display:flex;align-items:center;justify-content:center;min-height:46px;cursor:pointer">📷 Tomar foto</label>
+        <label class="btn outline" for="fotoGal" style="display:flex;align-items:center;justify-content:center;min-height:46px;cursor:pointer">🖼️ Elegir de galería</label></div>
+      <input id="fotoCam" type="file" accept="image/*" capture="environment" class="hidden">
+      <input id="fotoGal" type="file" accept="image/*" class="hidden"></div>
     <div><span class="f">¿El ${d.activo.tipo === 'AREA' ? 'área' : 'equipo'} queda en condiciones de operar? *</span>
       <div class="seg"><button type="button" aria-pressed="true" data-op="SI">Sí</button><button type="button" aria-pressed="false" data-op="NO">No</button></div></div>
     <div><label class="f" for="pend">Actividades pendientes</label><input id="pend" class="in" placeholder="Ninguna"></div>
@@ -608,7 +612,7 @@ function abrirForm(codigo) {
     F.operativo = b.dataset.op;
     app.querySelectorAll('[data-op]').forEach(x => x.setAttribute('aria-pressed', x === b));
   });
-  document.getElementById('foto').onchange = e => comprimir(e.target.files[0]);
+  ['fotoCam', 'fotoGal'].forEach(id => document.getElementById(id).onchange = e => comprimir(e.target.files[0]));
   document.getElementById('guardar').onclick = guardar;
   window.scrollTo(0, 0);
 }
@@ -624,7 +628,7 @@ function comprimir(file) {
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     F.foto = c.toDataURL('image/jpeg', 0.8);
     URL.revokeObjectURL(url);
-    box.innerHTML = `<img src="${F.foto}" alt="Foto de evidencia seleccionada"><span class="muted">Toca para cambiarla</span>`;
+    box.innerHTML = `<img src="${F.foto}" alt="Foto de evidencia seleccionada"><span class="muted">Para cambiarla, usa los botones de abajo</span>`;
   };
   img.onerror = () => { box.innerHTML = '<span class="muted">No se pudo leer la imagen. Intenta con otra.</span>'; };
   img.src = url;
