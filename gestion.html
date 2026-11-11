@@ -435,14 +435,14 @@ function sPlan() {
     if (!puede()) return;
     const recarga = async m => { toast(m); await recargar(); abrirFicha(d.CODIGO, 'plan'); };
     sub.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { editN = +b.dataset.ed; pinta(); });
-    sub.querySelectorAll('[data-tg]').forEach(b => b.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, accion: b.dataset.a, n: +b.dataset.tg }); recarga('Actividad actualizada'); } catch (e) { fallo(e); } });
+    sub.querySelectorAll('[data-tg]').forEach(b => b.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, op: b.dataset.a, n: +b.dataset.tg }); recarga('Actividad actualizada'); } catch (e) { fallo(e); } });
     const ef = document.getElementById('e_frec'); if (ef) ef.onchange = () => document.getElementById('e_prog').innerHTML = progOpts(ef.value);
-    const eo = document.getElementById('e_ok'); if (eo) eo.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, accion: 'editar', n: editN,
+    const eo = document.getElementById('e_ok'); if (eo) eo.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, op: 'editar', n: editN,
       descripcion: document.getElementById('e_desc').value, frecuencia: ef.value, programacion: document.getElementById('e_prog').value }); recarga('Actividad editada'); } catch (e) { fallo(e); } };
     const en = document.getElementById('e_no'); if (en) en.onclick = () => { editN = null; pinta(); };
     const nf = document.getElementById('n_frec'); nf.onchange = () => document.getElementById('n_prog').innerHTML = progOpts(nf.value);
     document.getElementById('n_ok').onclick = async () => { const desc = document.getElementById('n_desc').value.trim(); if (desc.length < 5) return toast('Describe la actividad');
-      try { const r = await api('g_tarea', { a: d.CODIGO, accion: 'agregar', descripcion: desc, frecuencia: nf.value, programacion: document.getElementById('n_prog').value }); recarga('Actividad N.° ' + r.n + ' agregada'); } catch (e) { fallo(e); } };
+      try { const r = await api('g_tarea', { a: d.CODIGO, op: 'agregar', descripcion: desc, frecuencia: nf.value, programacion: document.getElementById('n_prog').value }); recarga('Actividad N.° ' + r.n + ' agregada'); } catch (e) { fallo(e); } };
     document.getElementById('copiar').onclick = async () => { const de = document.getElementById('cpdesde').value.trim().toUpperCase(); if (!de) return toast('Escribe el código de origen');
       if (!confirm('¿Agregar a ' + d.CODIGO + ' las actividades activas de ' + de + '?')) return;
       try { const r = await api('g_copiarPlan', { a: d.CODIGO, desde: de }); recarga(r.copiadas + ' actividades copiadas'); } catch (e) { fallo(e); } };
