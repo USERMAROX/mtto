@@ -77,6 +77,10 @@ textarea.in{resize:vertical}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;max-width:90vw;z-index:20}
 .hidden{display:none!important}
 .chip.ju{background:#E8E3F5;color:#4B3A80}
+.chip.c1{background:var(--ne-soft);color:var(--ne)}.chip.c2{background:var(--ex-soft);color:var(--ex)}.chip.c3{background:#FBF1C7;color:#6B5300}.chip.c4{background:var(--at-soft);color:var(--at)}
+.efoto{height:200px;background:#DCE0E5;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;overflow:hidden}
+.efoto img{width:100%;height:100%;object-fit:cover}
+.docs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}.docs button{flex-shrink:0;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);background:#fff;font-size:13px;cursor:pointer}
 .hero{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 16px}
 .scanbtn{min-height:64px;font-size:18px;display:flex;align-items:center;justify-content:center;gap:10px}
 .kpi{font-size:40px;font-weight:700;line-height:1}
@@ -102,7 +106,7 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v3 · 2026-11-11';
+const VERSION = 'v5 · 2026-11-11';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -117,6 +121,19 @@ function toast(msg) {
   t.textContent = msg; t.classList.remove('hidden');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 4000);
 }
+const cacheArch = {};
+async function blobDe(id) {
+  if (cacheArch[id]) return cacheArch[id];
+  const r = await api('archivo', { id });
+  const bin = atob(r.base64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return (cacheArch[id] = URL.createObjectURL(new Blob([arr], { type: r.mime })));
+}
+async function abrirArchivo(id) {
+  const w = window.open('', '_blank');
+  try { const u = await blobDe(id); if (w) w.location = u; else location.href = u; } catch (e) { if (w) w.close(); if (!e.manejado) toast(e.message); }
+}
+const chipClase = c => c ? `<span class="chip ${c.toLowerCase()}">${c}</span>` : '';
 function cargando(txt) { app.innerHTML = `<div class="wrap pad center"><div class="spin" aria-hidden="true"></div><span class="muted">${esc(txt || 'Cargando…')}</span></div>`; }
 function setURL(a, k) {
   try { history.replaceState(null, '', location.pathname + (a ? '?a=' + encodeURIComponent(a) + (k ? '&k=' + encodeURIComponent(k) : '') : '')); } catch (e) {}
@@ -175,13 +192,18 @@ function vistaDenegado(msg) {
 async function api(accion, datos) {
   const body = JSON.stringify(Object.assign({ accion, idToken: S.token, a: S.a, k: S.k }, datos || {}));
   let res;
-  for (let intento = 0; intento < 2; intento++) {
-    try { res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }); break; }
-    catch (e) {
-      if (intento === 1) throw new Error('No se pudo conectar con el servidor. Revisa la conexión e intenta de nuevo.');
-      await new Promise(r => setTimeout(r, 1500));
+  const aviso = setTimeout(() => toast('El servidor está tardando más de lo normal…'), 10000);
+  try {
+    for (let intento = 0; intento < 2; intento++) {
+      const ctl = new AbortController(), tmo = setTimeout(() => ctl.abort(), 45000);
+      try { res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, signal: ctl.signal }); break; }
+      catch (e) {
+        if (intento === 1) throw new Error(e.name === 'AbortError' ? 'El servidor no respondió a tiempo. Intenta de nuevo.'
+                                                               : 'No se pudo conectar con el servidor. Revisa la conexión e intenta de nuevo.');
+        await new Promise(r => setTimeout(r, 1500));
+      } finally { clearTimeout(tmo); }
     }
-  }
+  } finally { clearTimeout(aviso); }
   const j = await res.json();
   if (!j.ok) {
     if (j.code === 'NO_AUTORIZADO') {
@@ -215,6 +237,7 @@ async function vistaInicio() {
     <button type="button" class="btn scanbtn" id="scan">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>
       Escanear código QR</button>
+    ${S.tec.permisos.gestionar || S.tec.permisos.anular ? `<a class="btn outline" href="./gestion.html" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Gestión: equipos, planes, asignación y criticidad</a>` : ''}
     <div id="avanceCard" class="card"><span class="muted">Cargando tu avance…</span></div>
     ${buscadorHTML()}
     <span class="muted center" style="display:block">${VERSION}</span></div>`;
@@ -240,9 +263,10 @@ async function vistaInicio() {
 function listaTareasAvance(items, mostrarHechas) {
   const porActivo = {};
   items.forEach(t => (porActivo[t.activo] = porActivo[t.activo] || []).push(t));
-  return Object.keys(porActivo).sort().map(cod => {
+  const ord = c => ({ C1: 1, C2: 2, C3: 3, C4: 4 }[c] || 5);
+  return Object.keys(porActivo).sort((x, y) => ord(porActivo[x][0].clase) - ord(porActivo[y][0].clase) || x.localeCompare(y)).map(cod => {
     const ts = porActivo[cod];
-    return `<div class="card"><div class="row"><div><span class="code">${esc(cod)}</span> <span style="font-weight:500">${esc(ts[0].nombreActivo)}</span></div>
+    return `<div class="card"><div class="row"><div><span class="code">${esc(cod)}</span> <span style="font-weight:500">${esc(ts[0].nombreActivo)}</span> ${chipClase(ts[0].clase)}</div>
       <button type="button" class="btn ghost" style="width:auto;min-height:36px;font-size:14px" data-ir="${esc(cod)}">Abrir</button></div>
       ${ts.map(t => `<div class="row" style="border-top:1px solid var(--line);padding-top:8px">
         <div style="min-width:0"><span class="code" style="font-size:13px">${esc(t.codigo)}</span>
@@ -277,6 +301,71 @@ function vistaAvance(r, sel) {
     catch (e) { if (!e.manejado) vistaError(e.message); }
   });
   window.scrollTo(0, 0);
+}
+
+/* ---------- Asignación de equipos (ADMIN) ---------- */
+const A = { data: null, sel: new Set(), q: '', sector: '', tec: '' };
+async function vistaAsignacion(recargar) {
+  if (!A.data || recargar !== false) {
+    cargando('Cargando equipos y técnicos…');
+    try { A.data = await api('asignaciones'); } catch (e) { if (!e.manejado) vistaError(e.message); return; }
+  }
+  const d = A.data;
+  const carga = {};
+  d.tecnicos.forEach(t => carga[t.nombre] = { eq: 0, ta: 0 });
+  carga['SIN ASIGNAR'] = { eq: 0, ta: 0 };
+  d.activos.forEach(a => { const k = carga[a.responsable] ? a.responsable : 'SIN ASIGNAR'; carga[k].eq++; carga[k].ta += a.tareas; });
+  const sectores = Array.from(new Set(d.activos.map(a => a.sector).filter(Boolean))).sort();
+  const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const lista = d.activos.filter(a =>
+    (!A.q || norm(a.codigo + ' ' + a.nombre).indexOf(norm(A.q)) >= 0) &&
+    (!A.sector || a.sector === A.sector) &&
+    (!A.tec || (A.tec === 'SIN ASIGNAR' ? !carga[a.responsable] || a.responsable === '' : a.responsable === A.tec)));
+  app.innerHTML = `<div class="wrap pad" style="max-width:820px;padding-bottom:120px">
+    <button type="button" class="btn ghost" style="width:auto;min-height:40px" id="volver">← Inicio</button>
+    <h1 style="font-size:20px;margin:0">Asignación de equipos</h1>
+    <span class="muted">Cada equipo o área se asigna completo a un técnico: todas sus tareas pasan a esa persona desde ahora. Cualquier técnico puede seguir ejecutándolas. Cada cambio queda en la hoja ASIGNACIONES.</span>
+    <div class="card" style="padding:0;overflow-x:auto"><table class="tabla"><tr><th>Técnico</th><th>Equipos</th><th>Tareas</th></tr>
+      ${Object.keys(carga).filter(k => carga[k].eq || k !== 'SIN ASIGNAR').map(k => `<tr class="sel" data-ft="${esc(k)}">
+        <td>${esc(k)}</td><td>${carga[k].eq}</td><td>${carga[k].ta}</td></tr>`).join('')}</table></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      <div><label class="f" for="aq">Buscar</label><input id="aq" class="in" value="${esc(A.q)}" placeholder="Código o nombre"></div>
+      <div><label class="f" for="as">Sector</label><select id="as" class="in"><option value="">Todos</option>${sectores.map(x => `<option ${A.sector === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+      <div><label class="f" for="at">Asignado a</label><select id="at" class="in"><option value="">Todos</option>${Object.keys(carga).map(x => `<option ${A.tec === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+    </div>
+    <div class="row"><span class="muted">${lista.length} activos · ${A.sel.size} seleccionados</span>
+      <span style="display:flex;gap:12px"><button type="button" class="btn ghost" style="width:auto;min-height:36px;font-size:13px" id="todos">Seleccionar visibles</button>
+      <button type="button" class="btn ghost" style="width:auto;min-height:36px;font-size:13px" id="ninguno">Limpiar</button></span></div>
+    <div class="card" style="padding:0;overflow-x:auto"><table class="tabla">
+      <tr><th></th><th>Código</th><th>Nombre</th><th>Sector</th><th>Tareas</th><th>Asignado a</th></tr>
+      ${lista.map(a => `<tr><td><input type="checkbox" data-c="${esc(a.codigo)}" ${A.sel.has(a.codigo) ? 'checked' : ''} aria-label="Seleccionar ${esc(a.codigo)}" style="width:20px;height:20px"></td>
+        <td class="code">${esc(a.codigo)}</td><td>${esc(a.nombre)}</td><td class="muted">${esc(a.sector || '')}</td><td>${a.tareas}</td>
+        <td>${a.responsable ? esc(a.responsable) : '<span class="chip ne">Sin asignar</span>'}</td></tr>`).join('')}
+    </table></div>
+  </div>
+  <div class="foot"><div class="wrap" style="max-width:820px">
+    <select id="dest" class="in" style="flex:1"><option value="">Asignar seleccionados a…</option>${d.tecnicos.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</select>
+    <button type="button" class="btn" id="aplicar" style="width:auto" ${A.sel.size ? '' : 'disabled'}>Asignar ${A.sel.size || ''}</button></div></div>`;
+  const redibujar = () => vistaAsignacion(false);
+  document.getElementById('volver').onclick = vistaInicio;
+  document.getElementById('aq').onchange = e => { A.q = e.target.value.trim(); redibujar(); };
+  document.getElementById('as').onchange = e => { A.sector = e.target.value; redibujar(); };
+  document.getElementById('at').onchange = e => { A.tec = e.target.value; redibujar(); };
+  app.querySelectorAll('[data-ft]').forEach(tr => tr.onclick = () => { A.tec = tr.dataset.ft; redibujar(); });
+  app.querySelectorAll('[data-c]').forEach(cb => cb.onchange = () => { cb.checked ? A.sel.add(cb.dataset.c) : A.sel.delete(cb.dataset.c); redibujar(); });
+  document.getElementById('todos').onclick = () => { lista.forEach(a => A.sel.add(a.codigo)); redibujar(); };
+  document.getElementById('ninguno').onclick = () => { A.sel.clear(); redibujar(); };
+  document.getElementById('aplicar').onclick = async () => {
+    const t = document.getElementById('dest').value;
+    if (!t) return toast('Elige el técnico al que vas a asignar');
+    if (!confirm('Asignar ' + A.sel.size + ' activo(s) a ' + t + '?')) return;
+    const btn = document.getElementById('aplicar'); btn.disabled = true; btn.textContent = 'Asignando…';
+    try {
+      const r = await api('asignar', { codigos: Array.from(A.sel), tecnico: t });
+      toast(r.cambiados + ' activo(s) asignados a ' + r.tecnico);
+      A.sel.clear(); vistaAsignacion();
+    } catch (e) { if (!e.manejado) { toast(e.message); btn.disabled = false; btn.textContent = 'Asignar'; } }
+  };
 }
 
 /* ---------- Escáner QR ---------- */
@@ -375,15 +464,22 @@ function irActivo(cod) {
 /* ---------- Activo y pendientes ---------- */
 async function cargarActivo() {
   cargando('Cargando ' + S.a + '…');
-  try { S.data = await api('activo'); vistaActivo(); }
+  try { S.data = await api('activo'); S.confirmado = S.data.modo === 'QR'; vistaActivo(); }
   catch (e) { if (!e.manejado) vistaError(e.message); }
 }
+const TIPO_DOC = { CERT_SANITARIO: 'Certificado sanitario', FICHA_TECNICA: 'Ficha técnica', MANUAL: 'Manual', OTRO: 'Documento' };
 function cabecera(tab) {
-  const a = S.data.activo;
-  return `<div class="head"><div class="row"><span class="code">${esc(a.codigo)}</span>
-      <span class="chip ${a.estado === 'ACTIVO' ? 'at' : 'gr'}">${esc(a.estado || '')}</span></div>
+  const a = S.data.activo, docs = S.data.documentos || [];
+  setTimeout(() => {
+    if (a.foto) blobDe(a.foto).then(u => { const f = document.getElementById('efoto'); if (f) f.innerHTML = `<img src="${u}" alt="Foto de ${esc(a.nombre)}">`; }).catch(() => {});
+    document.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => abrirArchivo(b.dataset.doc));
+  }, 0);
+  return `<div class="efoto" id="efoto">${a.foto ? 'Cargando foto…' : 'Sin foto del equipo'}</div>
+  <div class="head"><div class="row"><span class="code">${esc(a.codigo)}</span>
+      <span style="display:flex;gap:6px">${chipClase(a.clase)}${a.contacto ? '<span class="chip mine">Contacto con alimentos</span>' : ''}<span class="chip ${a.estado === 'ACTIVO' ? 'at' : 'gr'}">${esc(a.estado || '')}</span></span></div>
     <span class="name">${esc(a.nombre)}</span>
-    ${a.sector ? `<span class="muted">${esc(a.sector)}</span>` : ''}
+    <span class="muted">${esc([a.sector, a.marca, a.capacidad].filter(Boolean).join(' · '))}</span>
+    ${docs.length ? `<div class="docs" style="margin-top:6px">${docs.map(d => `<button type="button" data-doc="${esc(d.fileId)}">📄 ${esc(TIPO_DOC[d.tipo] || d.nombre)}</button>`).join('')}</div>` : ''}
     <span class="muted">Sesión: <b>${esc(S.tec.nombre)}</b> · ${esc(S.tec.rol)} · ${S.data.modo === 'QR' ? 'acceso por QR' : S.data.modo === 'MANUAL' ? 'acceso manual' : 'solo consulta'}</span></div>
   <div class="tabs" role="tablist">
     <button role="tab" type="button" aria-selected="${tab === 'p'}" onclick="vistaActivo()">Pendientes</button>
@@ -409,6 +505,14 @@ function vistaActivo() {
   const pct = d.resumen.programadas ? Math.round(100 * d.resumen.ejecutadas / d.resumen.programadas) : 0;
   const bloque = (titulo, cls, lista, tipo, vacio) => `<span class="sec ${cls}">${titulo} (${lista.length})</span>` +
     (lista.length ? lista.map(x => tarjeta(x, tipo)).join('') : `<div class="empty">${vacio}</div>`);
+  if (!S.confirmado) {
+    app.innerHTML = cabecera('p') + `<div class="wrap pad"><div class="note info" style="display:flex;flex-direction:column;gap:12px">
+      <b style="font-size:15px">Entraste sin escanear el QR. Confirma que estás frente a este ${d.activo.tipo === 'AREA' ? 'área' : 'equipo'} (revisa la foto y el nombre).</b>
+      <div class="seg"><button type="button" id="siEs" aria-pressed="true">Sí, es este</button><button type="button" id="noEs" aria-pressed="false">No, buscar otro</button></div></div></div>`;
+    document.getElementById('siEs').onclick = () => { S.confirmado = true; vistaActivo(); };
+    document.getElementById('noEs').onclick = () => { S.a = ''; S.k = ''; setURL(); vistaInicio(); };
+    return;
+  }
   app.innerHTML = cabecera('p') + `<div class="wrap pad">
     ${d.modo === 'MANUAL' ? `<div class="note info">Acceso manual, sin QR. Los registros quedarán marcados como manuales.</div>` : ''}
     ${d.modo === 'CONSULTA' ? `<div class="note warn">Para registrar, escanea el código QR del equipo (botón en Inicio). Desde aquí solo puedes consultar.</div>` : ''}
@@ -462,7 +566,8 @@ function abrirForm(codigo) {
       <div class="seg"><button type="button" aria-pressed="true" data-op="SI">Sí</button><button type="button" aria-pressed="false" data-op="NO">No</button></div></div>
     <div><label class="f" for="pend">Actividades pendientes</label><input id="pend" class="in" placeholder="Ninguna"></div>
     <div><label class="f" for="rep">Repuesto usado (referencia)</label><input id="rep" class="in" placeholder="Opcional"></div>
-    <div><label class="f" for="con">Contratista</label><input id="con" class="in" placeholder="Solo si aplica"></div>
+    <div><label class="f" for="con">Contratista</label><input id="con" class="in" placeholder="Solo si aplica">
+      <span class="muted" style="display:block;margin-top:4px">Si hubo contratista, el supervisor deberá cargar su informe (PDF) en el sistema.</span></div>
     <div id="ferr" class="note err hidden" role="alert"></div>
   </div>
   <div class="foot"><div class="wrap"><button type="button" class="btn ghost" onclick="vistaActivo()">Cancelar</button>

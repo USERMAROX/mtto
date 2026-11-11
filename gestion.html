@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dejamu · Gestión de mantenimiento</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{--bg:#F3F4F6;--surface:#fff;--ink:#16191D;--muted:#5B6470;--line:#DCE0E5;--line2:#AEB5BF;--primary:#1D4E89;--psoft:#DCE8F7;
+--at:#1B5E34;--atsoft:#DDF0E4;--ex:#8A3B00;--exsoft:#FDE8D4;--ne:#8E1F1F;--nesoft:#F6DEDE;--c3:#6B5300;--c3soft:#FBF1C7;
+--sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;color-scheme:light}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px}
+button,input,select,textarea{font:inherit;color:inherit}a{color:var(--primary)}:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.top{background:var(--ink);color:#fff;padding:14px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.top b{font-size:13px;letter-spacing:.08em}.top .r{display:flex;gap:18px;font-size:13px;color:#C9CED6;align-items:center}
+.top button,.top a{background:none;border:0;color:#C9CED6;cursor:pointer;text-decoration:none;font-size:13px}
+.tabs{background:#fff;border-bottom:1px solid var(--line);padding:14px 28px 0;display:flex;gap:28px}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:0 4px 12px;font-size:15px;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected=true]{color:var(--primary);font-weight:600;border-bottom-color:var(--primary)}
+main{padding:18px 28px 60px;max-width:1500px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px}.pad{padding:14px 16px}
+.row{display:flex;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:12px}.grow{flex:1 1 auto;min-width:0}
+.muted{color:var(--muted);font-size:13px}.code{font-family:var(--mono);font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;cursor:default}
+.kpi span:first-child{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.kpi b{font-size:28px}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.c-at{background:var(--atsoft);color:var(--at)}.c-ex{background:var(--exsoft);color:var(--ex)}.c-ne{background:var(--nesoft);color:var(--ne)}
+.c-gr{background:#ECEEF1;color:#3D4450}.c-bl{background:var(--psoft);color:var(--primary)}.c-c3{background:var(--c3soft);color:var(--c3)}
+.btn{min-height:38px;padding:0 16px;border-radius:8px;border:0;background:var(--primary);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn.g{background:#fff;color:var(--ink);border:1px solid var(--line2)}.btn.o{background:#fff;color:var(--primary);border:1px solid var(--primary)}
+.btn.w{background:#fff;color:var(--ex);border:1px solid var(--ex)}.btn.s{min-height:32px;padding:0 10px;font-size:13px}.btn:disabled{opacity:.5;cursor:default}
+.in{min-height:38px;border:1px solid var(--line2);border-radius:8px;padding:6px 10px;background:#fff;width:100%}
+label.f{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:#F7F8FA;padding:9px 12px;border-bottom:1px solid var(--line);position:sticky;top:0}
+td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.click{cursor:pointer}tr.click:hover td{background:#F7F9FC}
+.scroll{overflow:auto}.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pills button{height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--line2);background:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.pills button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
+.seg{display:inline-grid;grid-auto-flow:column;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{padding:7px 14px;border:0;border-left:1px solid var(--line2);background:#fff;font-weight:600;font-size:13px;cursor:pointer}.seg button:first-child{border-left:0}
+.seg button[aria-pressed=true]{background:var(--psoft);color:var(--primary)}
+.esc{display:flex;gap:6px}.esc button{width:36px;height:32px;border-radius:6px;border:1px solid var(--line2);background:#fff;font-family:var(--mono);font-weight:600;cursor:pointer}
+.esc button[aria-pressed=true]{background:var(--primary);color:#fff;border-color:var(--primary)}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tcard.drop{border:2px dashed var(--primary);background:#F3F7FC}
+.bar{height:6px;background:#ECEEF1;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--primary)}
+.eq{font-family:var(--mono);font-size:12px;font-weight:600;background:#F3F4F6;border:1px solid var(--line);border-radius:6px;padding:3px 7px;cursor:grab}
+.eq.sel{background:var(--psoft);border-color:var(--primary)}
+.sec{padding:8px 14px;font-size:13px;font-weight:700}.sec.r{background:var(--nesoft);color:var(--ne)}.sec.o{background:var(--exsoft);color:var(--ex)}
+.li{display:flex;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid #ECEEF1;cursor:grab}.li.sel{background:#F3F7FC}
+.dot{display:inline-block;width:12px;height:12px;border-radius:6px;border:1px solid var(--line)}.dot.on{background:var(--primary);border-color:var(--primary)}
+.foto{height:240px;background:#DCE0E5;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:13px}
+.foto img{width:100%;height:100%;object-fit:cover}
+.mini{display:flex;gap:4px}.mini span{display:flex;flex-direction:column;align-items:center;gap:2px;width:34px;font-size:10px;color:var(--muted)}
+.mini i{display:block;width:100%;height:4px;background:#ECEEF1;border-radius:2px;overflow:hidden}.mini i b{display:block;height:100%}
+.note{border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45}.n-r{background:var(--nesoft);color:var(--ne)}.n-o{background:var(--exsoft);color:var(--ex)}.n-g{background:#ECEEF1;color:#3D4450}.n-b{background:var(--psoft);color:var(--primary)}
+.modal{position:fixed;inset:0;background:rgba(22,25,29,.45);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.modal>div{background:#fff;border-radius:14px;padding:22px;width:min(660px,100%);max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;z-index:30;font-size:14px}
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--primary);border-radius:50%;animation:s .9s linear infinite;margin:60px auto}
+@keyframes s{to{transform:rotate(360deg)}}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="top"><b>DEJAMU · MANTENIMIENTO · GESTIÓN</b><div class="r"><span id="usr"></span><a href="./">App de campo</a><button id="salir" type="button">Salir</button></div></div>
+<nav class="tabs hidden" id="tabs" role="tablist">
+  <button role="tab" data-t="asig" type="button">Asignación</button><button role="tab" data-t="eq" type="button">Equipos y áreas</button>
+  <button role="tab" data-t="plan" type="button">Planes de mantenimiento</button><button role="tab" data-t="crit" type="button">Criticidad</button>
+</nav>
+<main id="app" aria-live="polite"></main>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
+const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
+const app = document.getElementById('app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+const G = { token: null, tec: null, res: null, tab: 'asig', sel: new Set(), f: { q: '', sector: '', estado: 'ACTIVO', tipo: '', crit: '' },
+            ficha: null, sub: 'datos', fichaCod: '' };
+const CL = { C1: ['c-ne', 'Crítico'], C2: ['c-ex', 'Importante'], C3: ['c-c3', 'Estándar'], C4: ['c-at', 'No crítico'] };
+const chipC = c => c ? `<span class="chip ${CL[c][0]}">${c}</span>` : '<span class="chip c-gr">—</span>';
+const PROG = { TODAS: 'Todas las quincenas', PRIMERA: '1.ª quincena del mes', SEGUNDA: '2.ª quincena del mes', DESDE_ULTIMA: 'Desde la última ejecución', SIN_PROGRAMAR: 'Sin programar' };
+function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
+function cargando(m) { app.innerHTML = `<div class="spin" aria-hidden="true"></div><p class="muted" style="text-align:center">${esc(m || 'Cargando…')}</p>`; }
+
+/* ---------- Sesión ---------- */
+function jwtExp(t) { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch (e) { return 0; } }
+function salir() { try { localStorage.removeItem('mtto_t'); } catch (e) {} if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); location.reload(); }
+document.getElementById('salir').onclick = salir;
+function vistaLogin(msg) {
+  document.getElementById('tabs').classList.add('hidden');
+  app.innerHTML = `<div class="card pad col" style="max-width:420px;margin:60px auto;align-items:center;text-align:center">
+    <b style="font-size:18px">Gestión de mantenimiento</b><span class="muted">Solo supervisores y administradores.</span>
+    ${msg ? `<div class="note n-r">${esc(msg)}</div>` : ''}<div id="gbtn"></div></div>`;
+  const p = () => { if (!(window.google && google.accounts && google.accounts.id)) return setTimeout(p, 200);
+    google.accounts.id.initialize({ client_id: CLIENT_ID, auto_select: true, callback: r => { G.token = r.credential; try { localStorage.setItem('mtto_t', r.credential); } catch (e) {} iniciar(); } });
+    google.accounts.id.renderButton(document.getElementById('gbtn'), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'es' }); };
+  p();
+}
+async function api(accion, datos) {
+  const body = JSON.stringify(Object.assign({ accion, idToken: G.token }, datos || {}));
+  const aviso = setTimeout(() => toast('El servidor está tardando más de lo normal…'), 10000);
+  let res;
+  try {
+    for (let i = 0; i < 2; i++) {
+      const ctl = new AbortController(), tmo = setTimeout(() => ctl.abort(), 60000);
+      try { res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, signal: ctl.signal }); break; }
+      catch (e) { if (i === 1) throw new Error('No se pudo conectar con el servidor.'); await new Promise(r => setTimeout(r, 1500)); }
+      finally { clearTimeout(tmo); }
+    }
+  } finally { clearTimeout(aviso); }
+  const j = await res.json();
+  if (!j.ok) {
+    if (j.code === 'NO_AUTORIZADO') { if (!/no está autorizada/.test(j.error)) try { localStorage.removeItem('mtto_t'); } catch (e) {} vistaLogin(j.error); throw Object.assign(new Error(j.error), { manejado: true }); }
+    throw new Error(j.error || 'Error del servidor');
+  }
+  return j;
+}
+const fallo = e => { if (!e.manejado) toast(e.message); };
+async function iniciar() {
+  cargando('Verificando acceso…');
+  try {
+    G.tec = (await api('sesion')).tecnico;
+    if (!(G.tec.permisos.gestionar || G.tec.permisos.anular)) return vistaLogin('Tu rol (' + G.tec.rol + ') no tiene acceso a la gestión.');
+    document.getElementById('usr').textContent = G.tec.nombre + ' · ' + G.tec.rol;
+    document.getElementById('tabs').classList.remove('hidden');
+    document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => irTab(b.dataset.t));
+    await recargar(); irTab('asig');
+  } catch (e) { if (!e.manejado) app.innerHTML = `<div class="note n-r">${esc(e.message)}</div>`; }
+}
+async function recargar() { G.res = await api('g_resumen'); }
+function irTab(t) {
+  G.tab = t; G.ficha = null;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
+  ({ asig: vAsig, eq: vEquipos, plan: vPlanes, crit: vCrit })[t]();
+}
+const puede = () => G.res && G.res.puedeGestionar;
+
+/* ---------- Archivos ---------- */
+function leerArchivo(file) { return new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = mal; r.readAsDataURL(file); }); }
+function comprimir(file, max) {
+  return new Promise((ok, mal) => { const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.82)); };
+    img.onerror = mal; img.src = u; });
+}
+const cacheArch = {};
+async function blobDe(id) {
+  if (cacheArch[id]) return cacheArch[id];
+  const r = await api('archivo', { id });
+  const bin = atob(r.base64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return (cacheArch[id] = URL.createObjectURL(new Blob([arr], { type: r.mime })));
+}
+async function abrirArchivo(id) {
+  const w = window.open('', '_blank');
+  try { const u = await blobDe(id); if (w) w.location = u; else location.href = u; } catch (e) { if (w) w.close(); fallo(e); }
+}
+function pedirArchivo(accept) {
+  return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => ok(i.files[0]); i.click(); });
+}
+
+/* ---------- A. Asignación ---------- */
+function vAsig() {
+  const a = G.res.activos.filter(x => x.estado === 'ACTIVO');
+  const tecs = G.res.tecnicos.map(t => t.nombre);
+  const sin = a.filter(x => !x.responsable), fuera = a.filter(x => x.responsable && !x.responsableValido);
+  const orden = c => ({ C1: 1, C2: 2, C3: 3, C4: 4 }[c] || 5);
+  const q = norm(G.f.q), sec = G.f.sector;
+  const filtra = l => l.filter(x => (!q || norm(x.codigo + ' ' + x.nombre).includes(q)) && (!sec || x.sector === sec)).sort((x, y) => orden(x.clase) - orden(y.clase) || x.codigo.localeCompare(y.codigo));
+  const carga = {}; tecs.forEach(t => carga[t] = { eq: [], ta: 0 });
+  a.forEach(x => { if (carga[x.responsable]) { carga[x.responsable].eq.push(x); carga[x.responsable].ta += x.tareas; } });
+  const maxT = Math.max(1, ...Object.values(carga).map(c => c.ta));
+  const prom = Object.values(carga).reduce((s, c) => s + c.ta, 0) / Math.max(1, tecs.length);
+  const fila = x => `<div class="li ${G.sel.has(x.codigo) ? 'sel' : ''}" draggable="${puede()}" data-cod="${esc(x.codigo)}">
+    <input type="checkbox" data-c="${esc(x.codigo)}" ${G.sel.has(x.codigo) ? 'checked' : ''} ${puede() ? '' : 'disabled'} aria-label="Seleccionar ${esc(x.codigo)}" style="width:18px;height:18px">
+    <div class="grow"><div><span class="code">${esc(x.codigo)}</span> · ${esc(x.nombre)} ${x.clase && x.clase <= 'C2' ? chipC(x.clase) : ''}</div>
+    <div class="muted">${esc(x.sector || '—')} · ${x.tareas} tareas${x.responsable ? ' · antes: ' + esc(x.responsable) : ''}</div></div></div>`;
+  const sectores = [...new Set(a.map(x => x.sector).filter(Boolean))].sort();
+  app.innerHTML = `<div class="col">
+    <div class="kpis"><div class="kpi"><span>Equipos y áreas activos</span><b>${a.length}</b><span class="muted">en operación</span></div>
+      <div class="kpi"><span>Asignados</span><b style="color:var(--at)">${a.length - sin.length - fuera.length}</b><span class="muted">${Math.round(100 * (a.length - sin.length - fuera.length) / Math.max(1, a.length))} %</span></div>
+      <div class="kpi" style="border-color:#E8B4B4"><span>Sin asignar</span><b style="color:var(--ne)">${sin.length}</b><span class="muted">nadie recibe sus tareas</span></div>
+      <div class="kpi" style="border-color:#F0B98A"><span>Técnico fuera de la lista</span><b style="color:var(--ex)">${fuera.length}</b><span class="muted">asignados a alguien inactivo</span></div></div>
+    <div class="row" style="align-items:flex-start;gap:16px">
+      <div class="card" style="width:420px;flex-shrink:0;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 290px)">
+        <div class="pad col" style="gap:8px;border-bottom:1px solid var(--line)"><b>Por asignar</b>
+          <div class="row" style="gap:8px"><input class="in" id="aq" placeholder="Buscar código o nombre" value="${esc(G.f.q)}">
+          <select class="in" id="as" style="width:160px"><option value="">Sector: todos</option>${sectores.map(s => `<option ${s === sec ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div></div>
+        <div class="scroll" style="flex:1">
+          <div class="sec r">SIN ASIGNAR (${sin.length})</div>${filtra(sin).map(fila).join('') || '<div class="li muted">Ninguno 🎉</div>'}
+          <div class="sec o">TÉCNICO FUERA DE LA LISTA (${fuera.length})</div>${filtra(fuera).map(fila).join('') || '<div class="li muted">Ninguno</div>'}</div>
+        ${puede() ? `<div class="pad col" style="gap:8px;border-top:1px solid var(--line);background:#F7F8FA"><b style="font-size:13px">${G.sel.size} seleccionados</b>
+          <div class="row" style="gap:8px"><select class="in" id="dest"><option value="">Asignar a…</option>${tecs.map(t => `<option>${esc(t)}</option>`).join('')}</select>
+          <button class="btn" id="asignar" type="button" ${G.sel.size ? '' : 'disabled'}>Asignar</button></div>
+          ${G.sel.size ? '<button class="btn g s" id="limpiar" type="button">Limpiar selección</button>' : ''}</div>` : ''}
+      </div>
+      <div class="grow col"><div class="row" style="justify-content:space-between"><b>Carga por técnico · ${esc(G.res.quincena)}</b>
+        <span class="muted">Barra = tareas activas · naranja = más de 30 % sobre el promedio · ${puede() ? 'arrastra un equipo a una tarjeta o haz clic en un código para seleccionarlo' : 'solo lectura'}</span></div>
+        <div class="grid3">${tecs.map(t => { const c = carga[t], alto = c.ta > prom * 1.3;
+          return `<div class="tcard" data-tec="${esc(t)}"><div class="row" style="justify-content:space-between"><b style="font-size:14px">${esc(t)}</b>
+            <span class="muted">${c.eq.length} eq · ${c.ta} tareas</span></div>
+            <div class="bar"><i style="width:${Math.round(100 * c.ta / maxT)}%;${alto ? 'background:var(--ex)' : ''}"></i></div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">${c.eq.sort((x, y) => x.codigo.localeCompare(y.codigo)).map(x => `<span class="eq ${G.sel.has(x.codigo) ? 'sel' : ''}" draggable="${puede()}" data-cod="${esc(x.codigo)}" title="${esc(x.nombre)}">${esc(x.codigo)}</span>`).join('') || '<span class="muted">Sin equipos</span>'}</div></div>`; }).join('')}</div></div>
+    </div></div>`;
+  const re = () => vAsig();
+  document.getElementById('aq').onchange = e => { G.f.q = e.target.value.trim(); re(); };
+  document.getElementById('as').onchange = e => { G.f.sector = e.target.value; re(); };
+  if (!puede()) return;
+  app.querySelectorAll('[data-c]').forEach(c => c.onchange = () => { c.checked ? G.sel.add(c.dataset.c) : G.sel.delete(c.dataset.c); re(); });
+  app.querySelectorAll('.eq').forEach(e => e.onclick = () => { G.sel.has(e.dataset.cod) ? G.sel.delete(e.dataset.cod) : G.sel.add(e.dataset.cod); re(); });
+  app.querySelectorAll('[draggable=true]').forEach(e => e.ondragstart = ev => ev.dataTransfer.setData('text/plain', e.dataset.cod));
+  app.querySelectorAll('.tcard').forEach(tc => {
+    tc.ondragover = ev => { ev.preventDefault(); tc.classList.add('drop'); };
+    tc.ondragleave = () => tc.classList.remove('drop');
+    tc.ondrop = ev => { ev.preventDefault(); tc.classList.remove('drop'); const cod = ev.dataTransfer.getData('text/plain'); if (cod) asignar([cod], tc.dataset.tec); };
+  });
+  const lim = document.getElementById('limpiar'); if (lim) lim.onclick = () => { G.sel.clear(); re(); };
+  document.getElementById('asignar').onclick = () => { const t = document.getElementById('dest').value; if (!t) return toast('Elige el técnico'); asignar([...G.sel], t); };
+}
+async function asignar(cods, tec) {
+  if (!confirm('¿Asignar ' + cods.join(', ') + ' a ' + tec + '?')) return;
+  try { const r = await api('asignar', { codigos: cods, tecnico: tec }); toast(r.cambiados + ' asignado(s) a ' + tec); G.sel.clear(); await recargar(); vAsig(); } catch (e) { fallo(e); }
+}
+
+/* ---------- B. Equipos y áreas ---------- */
+function vEquipos() {
+  const f = G.f, q = norm(f.q);
+  const lista = G.res.activos.filter(x => (!f.estado || x.estado === f.estado) && (!f.tipo || x.tipo === f.tipo) && (!f.sector || x.sector === f.sector) &&
+    (!q || norm(x.codigo + ' ' + x.nombre).includes(q))).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  const cuenta = e => G.res.activos.filter(x => x.estado === e).length;
+  const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
+  app.innerHTML = `<div class="col">
+    <div class="row" style="flex-wrap:wrap"><div class="pills" id="pe">${[['ACTIVO', 'Activos (' + cuenta('ACTIVO') + ')'], ['INACTIVO', 'Inactivos (' + cuenta('INACTIVO') + ')'], ['BAJA', 'De baja (' + cuenta('BAJA') + ')'], ['', 'Todos']]
+        .map(([k, t]) => `<button type="button" data-e="${k}" aria-pressed="${f.estado === k}">${t}</button>`).join('')}</div>
+      <select class="in" id="ft" style="width:140px"><option value="">Equipos y áreas</option><option value="EQUIPO" ${f.tipo === 'EQUIPO' ? 'selected' : ''}>Equipos</option><option value="AREA" ${f.tipo === 'AREA' ? 'selected' : ''}>Áreas</option></select>
+      <select class="in" id="fs" style="width:200px"><option value="">Todos los sectores</option>${sectores.map(s => `<option ${s === f.sector ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+      <input class="in grow" id="fq" placeholder="Buscar código o nombre" value="${esc(f.q)}" style="width:auto">
+      ${puede() ? '<button class="btn" id="nuevo" type="button">+ Nuevo equipo o área</button>' : ''}</div>
+    <span class="muted">${lista.length} resultados · clic en una fila para abrir la ficha</span>
+    <div class="card scroll" style="max-height:calc(100vh - 250px)"><table><thead><tr><th>Clase</th><th>Código</th><th>Nombre</th><th>Sector</th><th>Asignado a</th><th>Tareas</th><th>Documentos</th><th>Estado</th></tr></thead><tbody>
+    ${lista.map(x => `<tr class="click" data-cod="${esc(x.codigo)}"><td>${x.tipo === 'EQUIPO' ? chipC(x.clase) : ''}</td><td class="code">${esc(x.codigo)}</td>
+      <td>${esc(x.nombre)}${x.contacto ? ' <span class="chip c-bl">Alimentos</span>' : ''}</td><td class="muted">${esc(x.sector || '')}</td>
+      <td>${!x.responsable ? '<span class="chip c-ne">Sin asignar</span>' : x.responsableValido ? esc(x.responsable) : `<span class="chip c-ex">${esc(x.responsable)}</span>`}</td>
+      <td>${x.tareas}</td><td>${x.tipo !== 'EQUIPO' ? '' : x.faltan.length ? `<span class="chip c-ne">Faltan ${x.faltan.length}</span>` : '<span class="chip c-at">Completos</span>'}</td>
+      <td><span class="chip ${x.estado === 'ACTIVO' ? 'c-at' : x.estado === 'BAJA' ? 'c-ne' : 'c-gr'}">${esc(x.estado)}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+  app.querySelectorAll('#pe button').forEach(b => b.onclick = () => { f.estado = b.dataset.e; vEquipos(); });
+  document.getElementById('ft').onchange = e => { f.tipo = e.target.value; vEquipos(); };
+  document.getElementById('fs').onchange = e => { f.sector = e.target.value; vEquipos(); };
+  document.getElementById('fq').onchange = e => { f.q = e.target.value.trim(); vEquipos(); };
+  app.querySelectorAll('tr[data-cod]').forEach(tr => tr.onclick = () => abrirFicha(tr.dataset.cod, 'datos'));
+  const n = document.getElementById('nuevo'); if (n) n.onclick = modalNuevo;
+}
+
+/* ---------- Ficha ---------- */
+async function abrirFicha(cod, sub) {
+  G.fichaCod = cod; G.sub = sub || 'datos'; cargando('Cargando ' + cod + '…');
+  try { G.ficha = await api('g_activo', { a: cod }); vFicha(); } catch (e) { fallo(e); }
+}
+function vFicha() {
+  const F = G.ficha, d = F.datos, esEq = d.TIPO === 'EQUIPO', r = G.res.activos.find(x => x.codigo === d.CODIGO) || {};
+  const subs = [['datos', 'Datos'], ['docs', 'Documentos'], esEq && ['crit', 'Criticidad'], ['plan', 'Plan de mantenimiento']].filter(Boolean);
+  const cr = F.crit.actual;
+  app.innerHTML = `<div class="row" style="align-items:flex-start;gap:18px">
+    <div class="col" style="width:320px;flex-shrink:0">
+      <button class="btn g s" type="button" id="volver" style="align-self:flex-start">← Volver</button>
+      <div class="foto" id="foto">${d.FOTO ? 'Cargando foto…' : 'Sin foto del equipo'}</div>
+      ${puede() || G.tec.permisos.anular ? '<button class="btn g" type="button" id="cfoto">' + (d.FOTO ? 'Cambiar foto' : 'Subir foto') + '</button>' : ''}
+      <div class="card pad col" style="gap:6px"><span class="code" style="font-size:22px">${esc(d.CODIGO)}</span><b style="font-size:17px">${esc(d.NOMBRE)}</b>
+        <span class="muted">${esc([d.SECTOR, d.MARCA, d.CAPACIDAD].filter(Boolean).join(' · '))}</span>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip ${d.ESTADO === 'ACTIVO' ? 'c-at' : d.ESTADO === 'BAJA' ? 'c-ne' : 'c-gr'}">${esc(d.ESTADO || 'ACTIVO')}</span>
+          ${r.contacto ? '<span class="chip c-bl">Contacto con alimentos</span>' : ''}${esEq ? (cr ? `<span class="chip ${CL[cr.clase][0]}">${cr.clase} · ${cr.pts} pts</span>` : '<span class="chip c-gr">Sin criticidad</span>') : ''}</div>
+        <span style="font-size:13px">Asignado a <b>${esc(d.RESPONSABLE || 'nadie')}</b></span></div>
+      ${(r.faltan || []).length || F.soportes.some(s => !s.doc) ? `<div class="note n-o">${(r.faltan || []).length ? (r.faltan.length + ' documento(s) obligatorio(s) faltan. ') : ''}${F.soportes.filter(s => !s.doc).length ? F.soportes.filter(s => !s.doc).length + ' servicio(s) externo(s) sin soporte.' : ''}</div>` : ''}
+    </div>
+    <div class="grow col"><div class="tabs" style="padding:0;background:none" role="tablist">${subs.map(([k, t]) => `<button role="tab" type="button" data-s="${k}" aria-selected="${G.sub === k}">${t}</button>`).join('')}</div>
+      <div id="sub"></div></div></div>`;
+  document.getElementById('volver').onclick = () => irTab(G.tab);
+  app.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { G.sub = b.dataset.s; vFicha(); });
+  if (d.FOTO) blobDe(d.FOTO).then(u => { const f = document.getElementById('foto'); if (f) f.innerHTML = `<img src="${u}" alt="Foto de ${esc(d.NOMBRE)}">`; }).catch(() => {});
+  const cf = document.getElementById('cfoto');
+  if (cf) cf.onclick = async () => { const f = await pedirArchivo('image/*'); if (!f) return;
+    try { const foto = await comprimir(f, 1400); cf.disabled = true; cf.textContent = 'Subiendo…'; await api('g_foto', { a: d.CODIGO, foto }); toast('Foto actualizada'); abrirFicha(d.CODIGO, G.sub); } catch (e) { fallo(e); cf.disabled = false; } };
+  ({ datos: sDatos, docs: sDocs, crit: sCrit, plan: sPlan })[G.sub]();
+}
+function campo(id, label, val, extra) { return `<div><label class="f" for="${id}">${label}</label><input class="in" id="${id}" value="${esc(val || '')}" ${extra || ''} ${puede() ? '' : 'disabled'}></div>`; }
+function sDatos() {
+  const d = G.ficha.datos, sub = document.getElementById('sub'), dis = puede() ? '' : 'disabled';
+  const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
+  sub.innerHTML = `<div class="card pad col">
+    <div class="grid3">${campo('d_nombre', 'Nombre', d.NOMBRE)}${campo('d_sector', 'Sector', d.SECTOR, 'list="secs"')}${campo('d_categoria', 'Categoría', d.CATEGORIA)}
+      ${campo('d_marca', 'Marca', d.MARCA)}${campo('d_referencia', 'Referencia', d.REFERENCIA)}${campo('d_capacidad', 'Capacidad', d.CAPACIDAD)}
+      ${campo('d_fecha', 'Fecha de instalación', d.FECHA_INSTALACION, 'type="date"')}
+      <div><label class="f" for="d_resp">Asignado a</label><select class="in" id="d_resp" ${dis}><option value="">Sin asignar</option>${G.res.tecnicos.map(t => `<option ${t.nombre === d.RESPONSABLE ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('')}</select></div>
+      <div><span class="f">Contacto con alimentos</span><div class="seg" id="d_cont">${['Sí', 'No'].map(v => `<button type="button" ${dis} aria-pressed="${(/^s/i.test(String(d.CONTACTO_ALIMENTOS)) ? 'Sí' : 'No') === v}">${v}</button>`).join('')}</div></div></div>
+    <datalist id="secs">${sectores.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+    <div><label class="f" for="d_desc">Descripción</label><textarea class="in" id="d_desc" rows="2" ${dis}>${esc(d.DESCRIPCION || '')}</textarea></div>
+    <div><span class="f">Estado</span><div class="seg" id="d_est">${['ACTIVO', 'INACTIVO', 'BAJA'].map(v => `<button type="button" ${dis} aria-pressed="${(d.ESTADO || 'ACTIVO') === v}">${v.charAt(0) + v.slice(1).toLowerCase()}</button>`).join('')}</div>
+      <div class="muted" style="margin-top:4px">Inactivo: no genera tareas y conserva su historial; se puede reactivar. Baja: retirado definitivamente.</div></div>
+    <div class="note n-g row" style="justify-content:space-between;flex-wrap:wrap"><span>Enlace del QR: <span class="code" style="font-size:12px">${esc(d.URL_QR || '')}</span></span>
+      <span class="row" style="gap:8px"><button class="btn g s" type="button" id="cpqr">Copiar enlace</button>${puede() ? '<button class="btn w s" type="button" id="regen">Regenerar token</button>' : ''}</span></div>
+    ${puede() ? '<div class="row" style="justify-content:flex-end"><button class="btn" type="button" id="guardar">Guardar cambios</button></div>' : ''}</div>`;
+  const segVal = id => { const b = [...document.querySelectorAll('#' + id + ' button')].find(x => x.getAttribute('aria-pressed') === 'true'); return b ? b.textContent : ''; };
+  ['d_cont', 'd_est'].forEach(id => document.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => document.querySelectorAll('#' + id + ' button').forEach(x => x.setAttribute('aria-pressed', x === b))));
+  document.getElementById('cpqr').onclick = () => { navigator.clipboard.writeText(d.URL_QR || ''); toast('Enlace copiado'); };
+  if (!puede()) return;
+  document.getElementById('regen').onclick = async () => { if (!confirm('La etiqueta QR impresa de ' + d.CODIGO + ' dejará de funcionar. ¿Continuar?')) return;
+    try { await api('g_regenerarToken', { a: d.CODIGO }); toast('Token regenerado: reimprime la etiqueta'); abrirFicha(d.CODIGO, 'datos'); } catch (e) { fallo(e); } };
+  document.getElementById('guardar').onclick = async () => {
+    const v = id => document.getElementById(id).value.trim();
+    const est = segVal('d_est').toUpperCase();
+    if (est === 'BAJA' && d.ESTADO !== 'BAJA' && !confirm('Dar de baja ' + d.CODIGO + ' lo retira definitivamente. ¿Continuar?')) return;
+    try { await api('g_guardarActivo', { a: d.CODIGO, datos: { nombre: v('d_nombre'), sector: v('d_sector'), categoria: v('d_categoria'), marca: v('d_marca'),
+      referencia: v('d_referencia'), capacidad: v('d_capacidad'), fechaInstalacion: v('d_fecha'), responsable: v('d_resp'), descripcion: v('d_desc'),
+      contacto: segVal('d_cont') === 'Sí' ? 'Si' : 'No', estado: est } });
+      toast('Cambios guardados'); await recargar(); abrirFicha(d.CODIGO, 'datos'); } catch (e) { fallo(e); }
+  };
+}
+function sDocs() {
+  const F = G.ficha, d = F.datos, sub = document.getElementById('sub'), esEq = d.TIPO === 'EQUIPO';
+  const contacto = /^s/i.test(String(d.CONTACTO_ALIMENTOS)), ok = G.tec.permisos.gestionar || G.tec.permisos.anular;
+  const vig = F.docs.filter(x => x.estado === 'VIGENTE' && x.tipo !== 'SOPORTE');
+  const req = esEq ? [contacto && 'CERT_SANITARIO', 'FICHA_TECNICA', 'MANUAL'].filter(Boolean) : [];
+  const vencido = x => x.vigencia && x.vigencia !== 'Indefinida' && x.vigencia < new Date().toISOString().slice(0, 10);
+  const filaDoc = (tipo, x, oblig) => `<tr><td><b>${esc(F.tiposDoc[tipo])}</b>${oblig ? ' <span style="color:var(--ne)">*</span>' : ''}</td>
+    <td>${x ? `<a href="#" data-ver="${esc(x.fileId)}">📄 ${esc(x.nombre)}</a>` : '<span class="muted">Sin documento</span>'}</td><td>${x ? esc(x.fecha) : '—'}</td>
+    <td>${x ? `${esc(x.vigencia || 'Indefinida')}${ok ? ` <button class="btn g s" type="button" data-vig="${esc(x.id)}">Cambiar</button>` : ''}` : '—'}</td>
+    <td>${!x ? (oblig ? '<span class="chip c-ne">Falta</span>' : '') : vencido(x) ? '<span class="chip c-ex">Vencido</span>' : '<span class="chip c-at">Vigente</span>'}</td>
+    <td>${ok ? `<button class="btn ${x ? 'g' : ''} s" type="button" data-up="${tipo}">${x ? 'Reemplazar' : 'Subir PDF'}</button>${x ? ` <button class="btn g s" type="button" data-del="${esc(x.id)}">Eliminar</button>` : ''}` : ''}</td></tr>`;
+  sub.innerHTML = `<div class="col">
+    <div class="row" style="justify-content:space-between"><b>Documentos del ${esEq ? 'equipo' : 'área'}</b>${ok ? '<button class="btn" type="button" data-up="OTRO">+ Otro documento</button>' : ''}</div>
+    <div class="card scroll"><table><thead><tr><th>Tipo</th><th>Archivo</th><th>Cargado</th><th>Vigencia</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+      ${req.map(t => filaDoc(t, vig.find(x => x.tipo === t), true)).join('')}
+      ${vig.filter(x => x.tipo === 'OTRO').map(x => filaDoc('OTRO', x, false)).join('')}
+      ${!req.length && !vig.length ? '<tr><td colspan="6" class="muted">Sin documentos.</td></tr>' : ''}</tbody></table></div>
+    ${esEq ? '<span class="muted">* Obligatorios: certificado sanitario en equipos con contacto con alimentos; ficha técnica y manual en todos los equipos. Vigencia indefinida por defecto.</span>' : ''}
+    <b>Soportes de servicios externos</b>
+    <div class="card scroll"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Contratista y trabajo</th><th>Soporte</th><th>Acción</th></tr></thead><tbody>
+      ${F.soportes.map(s => `<tr><td>${esc(s.fecha)}</td><td>${esc(s.tipo)}</td><td>${esc(s.detalle)}</td>
+        <td>${s.doc ? `<a href="#" data-ver="${esc(s.doc.fileId)}">📎 ${esc(s.doc.nombre)}</a>` : '<span class="chip c-ex">Pendiente de soporte</span>'}</td>
+        <td>${ok ? `<button class="btn ${s.doc ? 'g' : ''} s" type="button" data-sop="${esc(s.id)}">${s.doc ? 'Reemplazar' : 'Subir PDF'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin registros con contratista.</td></tr>'}</tbody></table></div></div>`;
+  sub.querySelectorAll('[data-ver]').forEach(a => a.onclick = e => { e.preventDefault(); abrirArchivo(a.dataset.ver); });
+  const subir = async (tipo, registro) => {
+    const f = await pedirArchivo('application/pdf,image/jpeg,image/png'); if (!f) return;
+    if (f.size > 15 * 1048576) return toast('El archivo supera 15 MB');
+    try { toast('Subiendo ' + f.name + '…'); const archivo = await leerArchivo(f);
+      await api('g_subirDoc', { a: d.CODIGO, tipo, nombre: f.name, archivo, registro: registro || '' }); toast('Documento cargado'); await recargar(); abrirFicha(d.CODIGO, 'docs'); } catch (e) { fallo(e); }
+  };
+  sub.querySelectorAll('[data-up]').forEach(b => b.onclick = () => subir(b.dataset.up));
+  sub.querySelectorAll('[data-sop]').forEach(b => b.onclick = () => subir('SOPORTE', b.dataset.sop));
+  sub.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('¿Eliminar este documento?')) return;
+    try { await api('g_docEditar', { id: b.dataset.del, eliminar: true }); await recargar(); abrirFicha(d.CODIGO, 'docs'); } catch (e) { fallo(e); } });
+  sub.querySelectorAll('[data-vig]').forEach(b => b.onclick = async () => {
+    const v = prompt('Fecha de vigencia (AAAA-MM-DD). Déjala vacía para «Indefinida».', '');
+    if (v === null) return; if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return toast('Formato AAAA-MM-DD');
+    try { await api('g_docEditar', { id: b.dataset.vig, vigencia: v }); abrirFicha(d.CODIGO, 'docs'); } catch (e) { fallo(e); } });
+}
+const CRITERIOS = [['seg', 'Seguridad', '¿Riesgo de lesiones o accidentes si falla?'], ['prod', 'Producción', '¿Cuánto afecta la producción si falla?'],
+  ['amb', 'Ambiental', '¿Impacto ambiental de la falla?'], ['conf', 'Confiabilidad', '¿Con qué frecuencia falla? (promedio de correctivos al mes, últimos 12 meses)'],
+  ['det', 'Detectabilidad', '¿Qué tan difícil es detectar la falla antes de que ocurra?']];
+const NIVEL = ['', 'Muy bajo', 'Bajo', 'Moderado', 'Alto', 'Muy alto'];
+const clasif = p => p >= 18 ? 'C1' : p >= 13 ? 'C2' : p >= 7 ? 'C3' : 'C4';
+function sCrit() {
+  const F = G.ficha, d = F.datos, cr = F.crit, sub = document.getElementById('sub');
+  const v = cr.actual ? cr.actual.valores.slice() : [1, 1, 1, cr.confSugerida, 1];
+  const pinta = () => {
+    const pts = v.reduce((a, b) => a + b, 0), c = clasif(pts);
+    sub.innerHTML = `<div class="col"><div class="card pad">
+      ${CRITERIOS.map(([k, n, q], i) => `<div class="row" style="padding:10px 0;border-bottom:1px solid #ECEEF1;align-items:center">
+        <div style="width:230px"><b>${n}</b><div class="muted">${q}</div></div>
+        <div class="grow"><div class="esc" role="group" aria-label="${n}">${[1, 2, 3, 4, 5].map(x => `<button type="button" data-i="${i}" data-v="${x}" aria-pressed="${v[i] === x}" ${puede() ? '' : 'disabled'}>${x}</button>`).join('')}</div>
+          <div class="muted" style="margin-top:4px">${NIVEL[v[i]]}${k === 'conf' ? ` · promedio ${cr.corrMes} correctivos/mes → sugerido ${cr.confSugerida}` : ''}</div></div>
+        <span class="chip ${k === 'conf' ? 'c-bl' : 'c-gr'}">${k === 'conf' ? 'Calculado' : 'Manual'}</span></div>`).join('')}
+      <div class="row" style="justify-content:space-between;padding-top:12px;flex-wrap:wrap">
+        <span>Total: <b class="code">${pts}</b>/25 → <span class="chip ${CL[c][0]}">${c} · ${CL[c][1]}</span>${cr.actual ? ` <span class="muted">(vigente: ${cr.actual.pts}, ${cr.actual.clase})</span>` : ''}</span>
+        ${puede() ? '<span class="row" style="gap:8px"><input class="in" id="obs" placeholder="Observación (opcional)" style="width:280px"><button class="btn" type="button" id="gcrit">Guardar evaluación</button></span>' : ''}</div></div>
+      <div class="row" style="gap:8px">${[['C1', '18–25', 'Predictivo / preventivo riguroso'], ['C2', '13–17', 'Preventivo periódico'], ['C3', '7–12', 'Preventivo básico'], ['C4', '5–6', 'Correctivo cuando falla']]
+        .map(([k, r, a]) => `<div class="note grow ${{ C1: 'n-r', C2: 'n-o', C3: 'n-g', C4: 'n-g' }[k]}" style="${k === c ? 'outline:2px solid currentColor' : ''}"><b>${k} · ${CL[k][1]}</b><br>${r} pts · ${a}</div>`).join('')}</div>
+      <b>Historial de evaluaciones</b>
+      <div class="card scroll"><table><thead><tr><th>Fecha</th><th>Evaluó</th><th>Seg-Prod-Amb-Conf-Det</th><th>Pts</th><th>Clase</th><th>Observación</th></tr></thead><tbody>
+      ${cr.historial.slice().reverse().map(h => `<tr><td>${esc(h.fecha)}</td><td>${esc(h.evaluo)}</td><td class="code">${h.valores.join('-')}</td><td class="code">${h.pts}</td><td>${chipC(h.clase)}</td><td class="muted">${esc(h.obs || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sin evaluaciones.</td></tr>'}</tbody></table></div>
+      <span class="muted">Metodología basada en UNE-EN 16646:2015. Clases: C4 5–6 · C3 7–12 · C2 13–17 · C1 18–25.</span></div>`;
+    sub.querySelectorAll('.esc button').forEach(b => b.onclick = () => { v[+b.dataset.i] = +b.dataset.v; pinta(); });
+    const g = document.getElementById('gcrit');
+    if (g) g.onclick = async () => { try { const r = await api('g_criticidad', { a: d.CODIGO, seg: v[0], prod: v[1], amb: v[2], conf: v[3], det: v[4], obs: document.getElementById('obs').value });
+      toast('Evaluación guardada: ' + r.clase + ' (' + r.pts + ' pts)'); await recargar(); abrirFicha(d.CODIGO, 'crit'); } catch (e) { fallo(e); } };
+  };
+  pinta();
+}
+function qLabels() { const n = G.res.quincena.match(/Q(\d{2})-(\d{4})/); let q = +n[2] * 24 + +n[1]; const out = [];
+  for (let i = 0; i < 6; i++, q++) { const y = Math.floor((q - 1) / 24), k = q - y * 24; out.push('Q' + String(k).padStart(2, '0')); } return out; }
+function sPlan() {
+  const F = G.ficha, d = F.datos, sub = document.getElementById('sub'), qs = qLabels();
+  const progOpts = (frec, sel) => { const f = String(frec).toUpperCase();
+    const ops = f === 'QUINCENAL' ? ['TODAS'] : f === 'MENSUAL' ? ['PRIMERA', 'SEGUNDA'] : ['DESDE_ULTIMA'];
+    return ops.map(o => `<option value="${o}" ${o === sel ? 'selected' : ''}>${PROG[o]}</option>`).join(''); };
+  const frOpts = sel => G.res.frecuencias.map(f => `<option ${f === String(sel).toUpperCase() ? 'selected' : ''}>${f}</option>`).join('');
+  let editN = null;
+  const pinta = () => {
+    sub.innerHTML = `<div class="col">
+      ${puede() ? `<div class="row" style="justify-content:flex-end;gap:8px"><input class="in" id="cpdesde" placeholder="Código origen (ej. E054)" style="width:200px">
+        <button class="btn g" type="button" id="copiar">Copiar plan desde ese equipo</button></div>` : ''}
+      <div class="card scroll"><table><thead><tr><th>N.°</th><th>Actividad</th><th>Frecuencia</th><th>Programación</th>${qs.map(q => `<th style="text-align:center;font-family:var(--mono)">${q}</th>`).join('')}<th>Estado</th><th></th></tr></thead><tbody>
+      ${F.plan.map(t => editN === t.n ? `<tr><td class="code">${t.n}</td><td><input class="in" id="e_desc" value="${esc(t.descripcion)}"></td>
+          <td><select class="in" id="e_frec">${frOpts(t.frecuencia)}</select></td><td><select class="in" id="e_prog">${progOpts(t.frecuencia, t.programacion)}</select></td>
+          <td colspan="${qs.length}" class="muted">El cambio aplica desde la siguiente quincena</td><td></td>
+          <td style="white-space:nowrap"><button class="btn s" type="button" id="e_ok">Guardar</button> <button class="btn g s" type="button" id="e_no">Cancelar</button></td></tr>`
+        : `<tr style="${t.estado !== 'ACTIVO' ? 'opacity:.5' : ''}"><td class="code">${t.n}</td><td>${esc(t.descripcion)}${t.ultima ? `<div class="muted">Última: ${esc(t.ultima)}</div>` : ''}</td>
+          <td>${esc(t.frecuencia)}</td><td class="muted">${PROG[t.programacion] || ''}</td>${t.proximas.map(p => `<td style="text-align:center"><span class="dot ${p && t.estado === 'ACTIVO' ? 'on' : ''}"></span></td>`).join('')}
+          <td><span class="chip ${t.estado === 'ACTIVO' ? 'c-at' : 'c-gr'}">${t.estado === 'ACTIVO' ? 'Activa' : 'Inactiva'}</span></td>
+          <td style="white-space:nowrap">${puede() ? `<button class="btn g s" type="button" data-ed="${t.n}">Editar</button> <button class="btn g s" type="button" data-tg="${t.n}" data-a="${t.estado === 'ACTIVO' ? 'inactivar' : 'activar'}">${t.estado === 'ACTIVO' ? 'Inactivar' : 'Activar'}</button>` : ''}</td></tr>`).join('')
+        || `<tr><td colspan="${6 + qs.length}" class="muted">Sin actividades.</td></tr>`}</tbody></table></div>
+      ${puede() ? `<div class="card pad col" style="border:2px solid var(--primary)"><b>Nueva actividad · N.° ${F.plan.reduce((a, t) => Math.max(a, +t.n), 0) + 1}</b>
+        <div class="row" style="align-items:flex-end;gap:10px"><div class="grow"><label class="f" for="n_desc">Descripción</label><input class="in" id="n_desc" placeholder="Qué se debe hacer"></div>
+        <div><label class="f" for="n_frec">Frecuencia</label><select class="in" id="n_frec">${frOpts('QUINCENAL')}</select></div>
+        <div><label class="f" for="n_prog">Programación</label><select class="in" id="n_prog">${progOpts('QUINCENAL', 'TODAS')}</select></div>
+        <button class="btn" type="button" id="n_ok">Agregar</button></div></div>` : ''}
+      <span class="muted">● programada en esa quincena. Las actividades no se eliminan: se inactivan para conservar la hoja de vida, y los N.° no se reutilizan.</span></div>`;
+    if (!puede()) return;
+    const recarga = async m => { toast(m); await recargar(); abrirFicha(d.CODIGO, 'plan'); };
+    sub.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { editN = +b.dataset.ed; pinta(); });
+    sub.querySelectorAll('[data-tg]').forEach(b => b.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, accion: b.dataset.a, n: +b.dataset.tg }); recarga('Actividad actualizada'); } catch (e) { fallo(e); } });
+    const ef = document.getElementById('e_frec'); if (ef) ef.onchange = () => document.getElementById('e_prog').innerHTML = progOpts(ef.value);
+    const eo = document.getElementById('e_ok'); if (eo) eo.onclick = async () => { try { await api('g_tarea', { a: d.CODIGO, accion: 'editar', n: editN,
+      descripcion: document.getElementById('e_desc').value, frecuencia: ef.value, programacion: document.getElementById('e_prog').value }); recarga('Actividad editada'); } catch (e) { fallo(e); } };
+    const en = document.getElementById('e_no'); if (en) en.onclick = () => { editN = null; pinta(); };
+    const nf = document.getElementById('n_frec'); nf.onchange = () => document.getElementById('n_prog').innerHTML = progOpts(nf.value);
+    document.getElementById('n_ok').onclick = async () => { const desc = document.getElementById('n_desc').value.trim(); if (desc.length < 5) return toast('Describe la actividad');
+      try { const r = await api('g_tarea', { a: d.CODIGO, accion: 'agregar', descripcion: desc, frecuencia: nf.value, programacion: document.getElementById('n_prog').value }); recarga('Actividad N.° ' + r.n + ' agregada'); } catch (e) { fallo(e); } };
+    document.getElementById('copiar').onclick = async () => { const de = document.getElementById('cpdesde').value.trim().toUpperCase(); if (!de) return toast('Escribe el código de origen');
+      if (!confirm('¿Agregar a ' + d.CODIGO + ' las actividades activas de ' + de + '?')) return;
+      try { const r = await api('g_copiarPlan', { a: d.CODIGO, desde: de }); recarga(r.copiadas + ' actividades copiadas'); } catch (e) { fallo(e); } };
+  };
+  pinta();
+}
+
+/* ---------- Nuevo equipo ---------- */
+function modalNuevo() {
+  const m = document.createElement('div'); m.className = 'modal';
+  const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
+  m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Nuevo equipo o área"><div class="row" style="justify-content:space-between"><b style="font-size:19px">Nuevo equipo o área</b><button class="btn g s" type="button" id="mx">Cerrar</button></div>
+    <div><span class="f">Tipo</span><div class="seg" id="m_tipo"><button type="button" aria-pressed="true">Equipo</button><button type="button" aria-pressed="false">Área</button></div>
+      <div class="muted" style="margin-top:4px">El código se asigna automáticamente (siguiente libre) y no se reutiliza.</div></div>
+    <div><label class="f" for="m_nom">Nombre *</label><input class="in" id="m_nom"></div>
+    <div class="grid3"><div><label class="f" for="m_sec">Sector</label><input class="in" id="m_sec" list="msecs"></div>
+      <div><label class="f" for="m_mar">Marca</label><input class="in" id="m_mar"></div><div><label class="f" for="m_cap">Capacidad</label><input class="in" id="m_cap"></div>
+      <div><label class="f" for="m_resp">Asignar a</label><select class="in" id="m_resp"><option value="">Sin asignar</option>${G.res.tecnicos.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</select></div>
+      <div><label class="f" for="m_fec">Instalación</label><input class="in" id="m_fec" type="date"></div>
+      <div><span class="f">Contacto con alimentos</span><div class="seg" id="m_cont"><button type="button" aria-pressed="false">Sí</button><button type="button" aria-pressed="true">No</button></div></div></div>
+    <datalist id="msecs">${sectores.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+    <div><label class="f" for="m_copia">Copiar plan de mantenimiento desde (opcional)</label><input class="in" id="m_copia" placeholder="Código de un equipo similar, ej. E054"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn g" type="button" id="mc">Cancelar</button><button class="btn" type="button" id="mok">Crear</button></div></div>`;
+  document.body.appendChild(m);
+  const cerrar = () => m.remove();
+  m.querySelector('#mx').onclick = cerrar; m.querySelector('#mc').onclick = cerrar;
+  ['m_tipo', 'm_cont'].forEach(id => m.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => m.querySelectorAll('#' + id + ' button').forEach(x => x.setAttribute('aria-pressed', x === b))));
+  const seg = id => [...m.querySelectorAll('#' + id + ' button')].find(x => x.getAttribute('aria-pressed') === 'true').textContent;
+  m.querySelector('#mok').onclick = async () => {
+    const v = id => m.querySelector('#' + id).value.trim();
+    if (!v('m_nom')) return toast('El nombre es obligatorio');
+    const b = m.querySelector('#mok'); b.disabled = true; b.textContent = 'Creando…';
+    try { const r = await api('g_guardarActivo', { nuevo: true, copiarPlanDe: v('m_copia'), datos: { tipo: seg('m_tipo') === 'Área' ? 'AREA' : 'EQUIPO', nombre: v('m_nom'),
+        sector: v('m_sec'), marca: v('m_mar'), capacidad: v('m_cap'), responsable: v('m_resp'), fechaInstalacion: v('m_fec'), contacto: seg('m_cont') === 'Sí' ? 'Si' : 'No' } });
+      cerrar(); toast('Creado ' + r.codigo); await recargar(); abrirFicha(r.codigo, 'datos'); } catch (e) { fallo(e); b.disabled = false; b.textContent = 'Crear'; }
+  };
+}
+
+/* ---------- C. Planes ---------- */
+function vPlanes() {
+  const q = norm(G.f.q);
+  const l = G.res.activos.filter(x => x.estado === 'ACTIVO' && (!q || norm(x.codigo + ' ' + x.nombre + ' ' + x.sector).includes(q))).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  app.innerHTML = `<div class="col"><div class="row"><input class="in" id="pq" placeholder="Buscar equipo o área para editar su plan" value="${esc(G.f.q)}" style="max-width:420px"></div>
+    <div class="card scroll" style="max-height:calc(100vh - 230px)"><table><thead><tr><th>Código</th><th>Nombre</th><th>Sector</th><th>Actividades activas</th><th></th></tr></thead><tbody>
+    ${l.map(x => `<tr class="click" data-cod="${esc(x.codigo)}"><td class="code">${esc(x.codigo)}</td><td>${esc(x.nombre)}</td><td class="muted">${esc(x.sector || '')}</td>
+      <td>${x.tareas ? x.tareas : '<span class="chip c-ex">Sin plan</span>'}</td><td><span class="btn g s">Editar plan</span></td></tr>`).join('')}</tbody></table></div></div>`;
+  document.getElementById('pq').onchange = e => { G.f.q = e.target.value.trim(); vPlanes(); };
+  app.querySelectorAll('tr[data-cod]').forEach(tr => tr.onclick = () => abrirFicha(tr.dataset.cod, 'plan'));
+}
+
+/* ---------- D. Criticidad ---------- */
+function vCrit() {
+  const eq = G.res.activos.filter(x => x.tipo === 'EQUIPO' && x.estado === 'ACTIVO');
+  const porRevisar = x => !x.clase || x.pts <= 5;
+  const desact = x => x.crit && x.confSugerida > x.crit[3];
+  const cum = x => x.cumpl.t ? Math.round(100 * x.cumpl.h / x.cumpl.t) : null;
+  const f = G.f.crit;
+  const l = eq.filter(x => !f || (f === 'REV' ? porRevisar(x) : f === 'DES' ? desact(x) : x.clase === f)).sort((a, b) => b.pts - a.pts || a.codigo.localeCompare(b.codigo));
+  const n = c => eq.filter(x => x.clase === c).length;
+  const bajo = eq.filter(x => (x.clase === 'C1' || x.clase === 'C2') && cum(x) !== null && cum(x) < 75);
+  const dimc = v => v >= 5 ? 'var(--ne)' : v >= 4 ? 'var(--ex)' : v >= 3 ? '#9A7A00' : 'var(--muted)';
+  app.innerHTML = `<div class="col">
+    <div class="kpis">${['C1', 'C2', 'C3', 'C4'].map(c => `<div class="kpi"><span>${c} · ${CL[c][1]}</span><b style="color:var(--${{ C1: 'ne', C2: 'ex', C3: 'c3', C4: 'at' }[c]})">${n(c)}</b></div>`).join('')}
+      <div class="kpi"><span>Por revisar</span><b>${eq.filter(porRevisar).length}</b><span class="muted">sin evaluar o todo en 1</span></div></div>
+    <div class="row" style="align-items:flex-start;gap:16px"><div class="grow col">
+      <div class="pills">${[['', 'Todas'], ['C1', 'C1'], ['C2', 'C2'], ['C3', 'C3'], ['C4', 'C4'], ['REV', 'Por revisar'], ['DES', 'Confiabilidad desactualizada']]
+        .map(([k, t]) => `<button type="button" data-f="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>
+      <div class="card scroll" style="max-height:calc(100vh - 300px)"><table><thead><tr><th>Clase</th><th>Código</th><th>Equipo</th><th>Criterios</th><th>Pts</th><th>Conf. sugerida</th><th>Cumplimiento Q</th></tr></thead><tbody>
+      ${l.map(x => `<tr class="click" data-cod="${esc(x.codigo)}"><td>${chipC(x.clase)}</td><td class="code">${esc(x.codigo)}</td><td>${esc(x.nombre)}<div class="muted">${esc(x.sector || '')}</div></td>
+        <td><div class="mini">${(x.crit || [0, 0, 0, 0, 0]).map((v, i) => `<span>${['Seg', 'Prod', 'Amb', 'Conf', 'Det'][i]}<i><b style="width:${v * 20}%;background:${dimc(v)}"></b></i><span class="code" style="color:${dimc(v)};font-size:11px;width:auto">${v || '—'}</span></span>`).join('')}</div></td>
+        <td class="code" style="font-size:16px">${x.pts || '—'}</td><td>${desact(x) ? `<span class="chip c-ex">${x.confSugerida} (actual ${x.crit[3]})</span>` : `<span class="muted">${x.confSugerida}</span>`}</td>
+        <td>${cum(x) === null ? '<span class="muted">—</span>' : `<span class="chip ${cum(x) >= 90 ? 'c-at' : cum(x) >= 75 ? 'c-ex' : 'c-ne'}">${cum(x)} %</span>`}</td></tr>`).join('')}</tbody></table></div></div>
+      <div class="col" style="width:330px;flex-shrink:0"><div class="card pad col" style="gap:8px"><b>Alertas</b>
+        ${bajo.length ? `<div class="note n-r"><b>${bajo.length} equipo(s) C1/C2 bajo 75 % de cumplimiento</b>: ${bajo.slice(0, 6).map(x => esc(x.nombre)).join(', ')}${bajo.length > 6 ? '…' : ''}</div>` : '<div class="note n-g">Ningún equipo C1/C2 bajo 75 % este periodo.</div>'}
+        ${eq.filter(desact).length ? `<div class="note n-o"><b>Confiabilidad desactualizada en ${eq.filter(desact).length} equipo(s)</b>: su promedio real de correctivos sugiere un nivel mayor.</div>` : ''}
+        <div class="note n-g"><b>${eq.filter(porRevisar).length} equipos por revisar</b>: sin evaluación o con todos los criterios en 1.</div>
+        ${eq.filter(x => x.faltan.length).length ? `<div class="note n-o"><b>${eq.filter(x => x.faltan.length).length} equipos con documentos obligatorios faltantes</b>.</div>` : ''}</div>
+        <div class="card pad muted" style="line-height:1.5">Clic en un equipo para evaluarlo. Clases: C4 5–6 · C3 7–12 · C2 13–17 · C1 18–25. Confiabilidad sugerida: promedio de correctivos/mes en 12 meses (0–1 = 1 · 2–3 = 2 · 4–5 = 3 · 6–7 = 4 · 8+ = 5).</div></div></div></div>`;
+  app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { G.f.crit = b.dataset.f; vCrit(); });
+  app.querySelectorAll('tr[data-cod]').forEach(tr => tr.onclick = () => abrirFicha(tr.dataset.cod, 'crit'));
+}
+
+/* ---------- Arranque ---------- */
+(function () { try { const t = localStorage.getItem('mtto_t'); if (t && jwtExp(t) > Date.now() + 60000) { G.token = t; return iniciar(); } } catch (e) {} vistaLogin(); })();
+</script>
+</body>
+</html>
