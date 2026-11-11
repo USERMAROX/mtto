@@ -106,7 +106,7 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v7 · 2026-11-11';
+const VERSION = 'v8 · 2026-11-11';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -255,8 +255,13 @@ async function vistaInicio() {
       ${m.vencidas.length ? `<span style="font-size:13px;color:var(--ex)">${m.vencidas.length} tarea(s) vencidas de quincenas anteriores aún subsanables</span>` : ''}
       <button type="button" class="btn outline" id="verAv">${r.equipo ? 'Ver avance del equipo y tareas hechas' : 'Ver tareas hechas'}</button>`;
     document.getElementById('verAv').onclick = () => vistaAvance(r);
-    const pend = m.vencidas.concat(m.items.filter(t => !t.hecha));
-    document.getElementById('misTareas').innerHTML = `<span class="sec pr">Mis tareas pendientes (${pend.length})</span>` + (pend.length ? listaEjecutable(pend) : '<div class="empty">No tienes tareas pendientes asignadas en esta quincena.</div>');
+    const hoyS = new Date().toISOString().slice(0, 10);
+    const rem = m.vencidas.concat(m.items.filter(t => !t.hecha && t.vence && t.vence < hoyS));
+    const act = m.items.filter(t => !t.hecha && !(t.vence && t.vence < hoyS));
+    document.getElementById('misTareas').innerHTML =
+      (rem.length ? `<div class="note warn" style="display:flex;flex-direction:column;gap:4px"><b style="font-size:15px">Remanente por subsanar: ${rem.length} tarea(s)</b>
+        <span>Quedaron sin ejecutar en quincenas anteriores. Ejecútalas antes de que se cierren como no ejecutadas (NE); se registran como extemporáneas (EX).</span></div>` + listaEjecutable(rem) : '') +
+      `<span class="sec pr">Mis tareas de esta quincena (${act.length})</span>` + (act.length ? listaEjecutable(act) : '<div class="empty">No tienes tareas pendientes asignadas en esta quincena.</div>');
     document.querySelectorAll('[data-ej]').forEach(b => b.onclick = () => ejecutarTarea(b.dataset.act, b.dataset.ej));
   } catch (e) {
     if (!e.manejado) document.getElementById('avanceCard').innerHTML = `<span class="muted">No se pudo cargar el avance: ${esc(e.message)}</span>`;
@@ -270,7 +275,7 @@ function listaEjecutable(items) {
     const ts = por[cod];
     return `<div class="card"><div><span class="code">${esc(cod)}</span> <span style="font-weight:600">${esc(ts[0].nombreActivo)}</span> ${chipClase(ts[0].clase)}</div>
       ${ts.map(t => `<div style="border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px">
-        <div class="row"><span class="code" style="font-size:13px">${esc(t.codigo)}</span>${t.quincena !== S.qAct ? '<span class="chip ex">Vencida</span>' : ''}</div>
+        <div class="row"><span class="code" style="font-size:13px">${esc(t.codigo)}</span>${t.quincena !== S.qAct ? `<span class="chip ex">Vencida · ${esc(t.quincena)}</span>` : ''}</div>
         <span style="font-size:14px">${esc(t.descripcion)}</span>
         <span class="muted">${esc(t.frecuencia)}${t.vence ? ' · vence ' + esc(t.vence) : ''}</span>
         ${t.justificacion ? `<span style="font-size:13px;color:#4B3A80">Justificada: ${esc(t.justificacion)}</span>` : ''}
