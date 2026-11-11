@@ -70,6 +70,7 @@ td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.cli
 <nav class="tabs hidden" id="tabs" role="tablist">
   <button role="tab" data-t="asig" type="button">Asignación</button><button role="tab" data-t="eq" type="button">Equipos y áreas</button>
   <button role="tab" data-t="plan" type="button">Planes de mantenimiento</button><button role="tab" data-t="crit" type="button">Criticidad</button>
+  <button role="tab" data-t="ind" type="button">Indicadores</button>
 </nav>
 <main id="app" aria-live="polite"></main>
 <div id="toast" class="toast hidden" role="status"></div>
@@ -137,7 +138,7 @@ async function recargar() { G.res = await api('g_resumen'); }
 function irTab(t) {
   G.tab = t; G.ficha = null;
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
-  ({ asig: vAsig, eq: vEquipos, plan: vPlanes, crit: vCrit })[t]();
+  ({ asig: vAsig, eq: vEquipos, plan: vPlanes, crit: vCrit, ind: vInd })[t]();
 }
 const puede = () => G.res && G.res.puedeGestionar;
 
@@ -181,9 +182,12 @@ function vAsig() {
   const fila = x => `<div class="li ${G.sel.has(x.codigo) ? 'sel' : ''}" draggable="${puede()}" data-cod="${esc(x.codigo)}">
     <input type="checkbox" data-c="${esc(x.codigo)}" ${G.sel.has(x.codigo) ? 'checked' : ''} ${puede() ? '' : 'disabled'} aria-label="Seleccionar ${esc(x.codigo)}" style="width:18px;height:18px">
     <div class="grow"><div><span class="code">${esc(x.codigo)}</span> · ${esc(x.nombre)} ${x.clase && x.clase <= 'C2' ? chipC(x.clase) : ''}</div>
-    <div class="muted">${esc(x.sector || '—')} · ${x.tareas} tareas${x.responsable ? ' · antes: ' + esc(x.responsable) : ''}</div></div></div>`;
+    <div class="muted">${esc(x.sector || '—')} · ${x.tareas} tareas${x.responsableOriginal ? ' · antes: ' + esc(x.responsableOriginal) : ''}</div></div></div>`;
   const sectores = [...new Set(a.map(x => x.sector).filter(Boolean))].sort();
+  const reconocibles = G.res.activos.filter(x => x.responsableValido && x.responsableOriginal && x.responsableOriginal !== x.responsable).length;
   app.innerHTML = `<div class="col">
+    ${reconocibles && puede() ? `<div class="note n-b row" style="justify-content:space-between"><span>${reconocibles} equipos tienen el nombre del técnico escrito distinto a la lista (por ejemplo «ANYELO» en vez de «ANGELO»). El sistema ya los reconoce; puedes corregirlos en la hoja con un clic.</span>
+      <button class="btn s" type="button" id="unif">Corregir nombres</button></div>` : ''}
     <div class="kpis"><div class="kpi"><span>Equipos y áreas activos</span><b>${a.length}</b><span class="muted">en operación</span></div>
       <div class="kpi"><span>Asignados</span><b style="color:var(--at)">${a.length - sin.length - fuera.length}</b><span class="muted">${Math.round(100 * (a.length - sin.length - fuera.length) / Math.max(1, a.length))} %</span></div>
       <div class="kpi" style="border-color:#E8B4B4"><span>Sin asignar</span><b style="color:var(--ne)">${sin.length}</b><span class="muted">nadie recibe sus tareas</span></div>
@@ -221,6 +225,8 @@ function vAsig() {
     tc.ondragleave = () => tc.classList.remove('drop');
     tc.ondrop = ev => { ev.preventDefault(); tc.classList.remove('drop'); const cod = ev.dataTransfer.getData('text/plain'); if (cod) asignar([cod], tc.dataset.tec); };
   });
+  const un = document.getElementById('unif');
+  if (un) un.onclick = async () => { try { const r = await api('g_unificarResponsables'); toast(r.cambios + ' nombres corregidos'); await recargar(); vAsig(); } catch (e) { fallo(e); } };
   const lim = document.getElementById('limpiar'); if (lim) lim.onclick = () => { G.sel.clear(); re(); };
   document.getElementById('asignar').onclick = () => { const t = document.getElementById('dest').value; if (!t) return toast('Elige el técnico'); asignar([...G.sel], t); };
 }
@@ -265,7 +271,7 @@ async function abrirFicha(cod, sub) {
 }
 function vFicha() {
   const F = G.ficha, d = F.datos, esEq = d.TIPO === 'EQUIPO', r = G.res.activos.find(x => x.codigo === d.CODIGO) || {};
-  const subs = [['datos', 'Datos'], ['docs', 'Documentos'], esEq && ['crit', 'Criticidad'], ['plan', 'Plan de mantenimiento']].filter(Boolean);
+  const subs = [['datos', 'Datos'], ['docs', 'Documentos'], esEq && ['crit', 'Criticidad'], ['plan', 'Plan de mantenimiento'], ['hv', 'Hoja de vida']].filter(Boolean);
   const cr = F.crit.actual;
   app.innerHTML = `<div class="row" style="align-items:flex-start;gap:18px">
     <div class="col" style="width:320px;flex-shrink:0">
@@ -287,7 +293,7 @@ function vFicha() {
   const cf = document.getElementById('cfoto');
   if (cf) cf.onclick = async () => { const f = await pedirArchivo('image/*'); if (!f) return;
     try { const foto = await comprimir(f, 1400); cf.disabled = true; cf.textContent = 'Subiendo…'; await api('g_foto', { a: d.CODIGO, foto }); toast('Foto actualizada'); abrirFicha(d.CODIGO, G.sub); } catch (e) { fallo(e); cf.disabled = false; } };
-  ({ datos: sDatos, docs: sDocs, crit: sCrit, plan: sPlan })[G.sub]();
+  ({ datos: sDatos, docs: sDocs, crit: sCrit, plan: sPlan, hv: sHV })[G.sub]();
 }
 function campo(id, label, val, extra) { return `<div><label class="f" for="${id}">${label}</label><input class="in" id="${id}" value="${esc(val || '')}" ${extra || ''} ${puede() ? '' : 'disabled'}></div>`; }
 function sDatos() {
@@ -438,6 +444,97 @@ function sPlan() {
       try { const r = await api('g_copiarPlan', { a: d.CODIGO, desde: de }); recarga(r.copiadas + ' actividades copiadas'); } catch (e) { fallo(e); } };
   };
   pinta();
+}
+
+/* ---------- Ficha › Hoja de vida ---------- */
+const HV = { filtro: 'TODO', pagina: 0, items: [], total: 0, cod: '' };
+const chipCum = c => ({ AT: '<span class="chip c-at">AT</span>', EX: '<span class="chip c-ex">EX</span>', NE: '<span class="chip c-ne">NE</span>', JU: '<span class="chip c-gr">JU</span>' }[c] || '');
+async function sHV(mas) {
+  const d = G.ficha.datos, sub = document.getElementById('sub');
+  if (HV.cod !== d.CODIGO || !mas) { HV.cod = d.CODIGO; HV.pagina = 0; HV.items = []; }
+  if (!HV.items.length) sub.innerHTML = '<div class="spin" aria-hidden="true"></div>';
+  try { const r = await api('hojaVida', { a: d.CODIGO, filtro: HV.filtro, pagina: HV.pagina }); HV.items = HV.items.concat(r.items); HV.total = r.total; }
+  catch (e) { return fallo(e); }
+  if (G.sub !== 'hv') return;
+  const anular = G.tec.permisos.anular || G.tec.permisos.gestionar;
+  sub.innerHTML = `<div class="col"><div class="row" style="justify-content:space-between;flex-wrap:wrap">
+      <div class="pills">${[['TODO', 'Todo'], ['PREVENTIVOS', 'Preventivos'], ['CORRECTIVOS', 'Correctivos'], ['NE', 'No ejecutadas']].map(([k, t]) => `<button type="button" data-hf="${k}" aria-pressed="${HV.filtro === k}">${t}</button>`).join('')}</div>
+      <span class="muted">${HV.total} registros (sistema nuevo + histórico)</span></div>
+    <div class="card scroll" style="max-height:calc(100vh - 300px)"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Código</th><th>Técnico</th><th>Actividad</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${HV.items.map(x => `<tr style="${x.estado === 'ANULADO' ? 'opacity:.5' : ''}"><td style="white-space:nowrap">${esc(x.fecha)}</td><td>${esc(x.tipo)}</td><td class="code" style="font-size:12px">${esc(x.codigo)}</td>
+      <td>${esc(x.tecnico)}</td><td>${esc(x.descripcion)}${x.foto && /^https/.test(x.foto) ? ` · <a href="${esc(x.foto)}" target="_blank" rel="noopener">foto</a>` : ''}</td>
+      <td>${x.estado === 'ANULADO' ? '<span class="chip c-gr">Anulado</span>' : chipCum(x.cumplimiento) || (x.origen === 'historico' ? '<span class="chip c-gr">Histórico</span>' : '')}</td>
+      <td>${anular && x.origen === 'v2' && x.estado !== 'ANULADO' && x.id ? `<button class="btn g s" type="button" data-an="${esc(x.id)}">Anular</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin registros.</td></tr>'}</tbody></table></div>
+    ${HV.items.length < HV.total ? '<button class="btn o" type="button" id="hvmas" style="align-self:center">Cargar más</button>' : ''}</div>`;
+  sub.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { HV.filtro = b.dataset.hf; HV.items = []; sHV(); });
+  const m = document.getElementById('hvmas'); if (m) m.onclick = () => { HV.pagina++; sHV(true); };
+  sub.querySelectorAll('[data-an]').forEach(b => b.onclick = async () => {
+    const motivo = prompt('Motivo de la anulación (queda en el historial):'); if (!motivo || motivo.trim().length < 5) return toast('Indica un motivo de al menos 5 caracteres');
+    try { await api('anular', { id: b.dataset.an, motivo }); toast('Registro anulado'); HV.items = []; sHV(); } catch (e) { fallo(e); } });
+}
+
+/* ---------- E. Indicadores ---------- */
+const IND = { desde: '', hasta: '', data: null };
+function barH(v, max, color) { return `<div class="bar" style="height:10px"><i style="width:${max ? Math.round(100 * v / max) : 0}%;${color ? 'background:' + color : ''}"></i></div>`; }
+async function vInd() {
+  if (!IND.hasta) { const h = new Date(); IND.hasta = h.toISOString().slice(0, 10); IND.desde = new Date(h.getFullYear(), h.getMonth() - 2, 1).toISOString().slice(0, 10); }
+  app.innerHTML = `<div class="col"><div class="row" style="flex-wrap:wrap"><div><label class="f" for="idd">Desde</label><input class="in" type="date" id="idd" value="${IND.desde}"></div>
+    <div><label class="f" for="idh">Hasta</label><input class="in" type="date" id="idh" value="${IND.hasta}"></div>
+    <button class="btn" type="button" id="igo" style="align-self:flex-end">Calcular</button>
+    <span class="muted" style="align-self:flex-end">Incluye el sistema nuevo y el histórico. Un periodo largo puede tardar hasta 30 s.</span></div><div id="ires"></div></div>`;
+  document.getElementById('igo').onclick = () => { IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.data = null; calcInd(); };
+  calcInd();
+}
+async function calcInd() {
+  const box = document.getElementById('ires');
+  if (!IND.data) { box.innerHTML = '<div class="spin" aria-hidden="true"></div><p class="muted" style="text-align:center">Calculando indicadores…</p>';
+    try { IND.data = await api('g_indicadores', { desde: IND.desde, hasta: IND.hasta }); } catch (e) { box.innerHTML = ''; return fallo(e); } }
+  const D = IND.data, T = D.cumplimiento.total, F = D.fallas;
+  const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+  const cerradas = T.prog - T.AB;
+  const maxQ = Math.max(1, ...D.cumplimiento.porQuincena.map(q => q.prog));
+  const seg = (q, k, col) => q[k] ? `<i style="height:${Math.round(180 * q[k] / maxQ)}px;background:${col};display:block"></i>` : '';
+  const filaGrupo = (o, k) => { const x = o[k]; return `<tr><td>${esc(k)}</td><td>${x.prog}</td><td>${x.AT + x.EX}</td><td>${x.NE}</td><td>${x.JU}</td>
+    <td><span class="chip ${pct(x.AT + x.EX, x.prog) >= 90 ? 'c-at' : pct(x.AT + x.EX, x.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(x.AT + x.EX, x.prog)} %</span></td></tr>`; };
+  const maxP = Math.max(1, ...F.pareto.map(p => p.n)), totP = F.pareto.reduce((a, p) => a + p.n, 0);
+  let acum = 0;
+  const maxT = Math.max(1, ...D.tecnicos.map(t => t.total));
+  box.innerHTML = `<div class="col" style="gap:18px">
+    <b style="font-size:18px">A · Cumplimiento del plan <span class="muted">(${esc(D.periodo.desde)} a ${esc(D.periodo.hasta)}, tareas quincenales y mensuales)</span></b>
+    <div class="kpis"><div class="kpi"><span>Cumplimiento</span><b>${pct(T.AT + T.EX, T.prog)} %</b><span class="muted">(AT + EX) / programadas · ${T.prog} programadas</span></div>
+      <div class="kpi"><span>Oportunidad</span><b>${pct(T.AT, T.prog)} %</b><span class="muted">a tiempo / programadas</span></div>
+      <div class="kpi"><span>No ejecutadas</span><b style="color:var(--ne)">${T.NE}</b><span class="muted">NE · ${T.JU} justificadas (JU)</span></div>
+      <div class="kpi"><span>Abiertas</span><b style="color:var(--ex)">${T.AB}</b><span class="muted">aún subsanables o en curso</span></div></div>
+    <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div class="card pad grow col" style="min-width:420px"><div class="row" style="justify-content:space-between"><b>Estado por quincena</b>
+        <span class="muted"><span class="chip c-at">AT</span> <span class="chip c-ex">EX</span> <span class="chip c-ne">NE</span> <span class="chip c-gr">JU / abiertas</span></span></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;height:200px">${D.cumplimiento.porQuincena.map(q => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+          <div style="width:100%;max-width:38px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden" title="${q.q}: ${q.prog} programadas">${seg(q, 'AT', '#1B5E34')}${seg(q, 'EX', '#E39A4B')}${seg(q, 'NE', '#8E1F1F')}${seg(q, 'JU', '#AEB5BF')}${seg(q, 'AB', '#DCE0E5')}</div>
+          <span class="code" style="font-size:11px">${esc(q.q.slice(0, 3))}</span></div>`).join('') || '<span class="muted">Sin programación en el periodo.</span>'}</div></div>
+      <div class="card scroll" style="width:460px"><table><thead><tr><th>Clase</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
+        ${['C1', 'C2', 'C3', 'C4', 'ÁREA', 'SIN'].filter(k => D.cumplimiento.porClase[k]).map(k => filaGrupo(D.cumplimiento.porClase, k)).join('') || '<tr><td colspan="6" class="muted">Sin datos</td></tr>'}</tbody></table></div></div>
+    <div class="card scroll" style="max-height:320px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
+      ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div>
+
+    <b style="font-size:18px">B · Fallas y correctivos</b>
+    <div class="kpis"><div class="kpi"><span>Correctivos</span><b>${F.correctivos}</b><span class="muted">en el periodo</span></div>
+      <div class="kpi"><span>Preventivos</span><b>${F.preventivos}</b><span class="muted">registros</span></div>
+      <div class="kpi"><span>MTTR</span><b>${F.mttr == null ? '—' : F.mttr + ' min'}</b><span class="muted">promedio por correctivo</span></div>
+      <div class="kpi"><span>Horas preventivo / total</span><b>${pct(F.horasPrev, F.horasPrev + F.horasCorr)} %</b><span class="muted">${F.horasPrev} h prev · ${F.horasCorr} h corr</span></div></div>
+    <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div class="card scroll grow" style="min-width:520px"><table><thead><tr><th>Equipo</th><th>Clase</th><th style="width:40%">Correctivos</th><th>% acum.</th><th>MTTR</th></tr></thead><tbody>
+        ${F.pareto.map(p => { acum += p.n; return `<tr><td><span class="code">${esc(p.codigo)}</span> ${esc(p.nombre)}</td><td>${chipC(p.clase)}</td>
+          <td><div class="row" style="gap:8px"><span class="code" style="width:28px">${p.n}</span><div class="grow">${barH(p.n, maxP)}</div></div></td>
+          <td class="muted">${pct(acum, totP)} %</td><td class="muted">${p.mttr == null ? '—' : p.mttr + ' min'}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Sin correctivos.</td></tr>'}</tbody></table></div>
+      <div class="card pad col" style="width:380px"><b>Equipos que quedaron no operativos</b>
+        ${F.noOperativos.map(n => `<div class="note n-r"><b class="code">${esc(n.codigo)}</b> ${esc(n.nombre)}<br><span style="font-size:12px">${esc(n.fecha)} · ${esc(n.desc)}</span></div>`).join('') || '<span class="muted">Ninguno según el último registro de cada equipo.</span>'}</div></div>
+
+    <b style="font-size:18px">C · Técnicos</b>
+    <div class="card scroll"><table><thead><tr><th>Técnico</th><th style="width:30%">Registros (prev. / corr.)</th><th>Horas</th><th>Con foto</th><th>Avance quincena actual</th></tr></thead><tbody>
+      ${D.tecnicos.map(t => `<tr><td>${esc(t.tecnico)}</td><td><div class="row" style="gap:8px"><span class="code" style="width:70px">${t.prev} / ${t.corr}</span><div class="grow">${barH(t.total, maxT)}</div></div></td>
+        <td>${Math.round(t.min / 60)}</td><td>${pct(t.foto, t.total)} %</td>
+        <td>${t.avance == null ? '<span class="muted">—</span>' : `<span class="chip ${t.avance >= 90 ? 'c-at' : t.avance >= 75 ? 'c-ex' : 'c-ne'}">${t.avance} %</span> <span class="muted">de ${t.asignadas}</span>`}</td></tr>`).join('')}</tbody></table></div>
+    <span class="muted">El cumplimiento solo existe desde que la programación se lleva en el sistema nuevo; los registros del histórico alimentan fallas y técnicos.</span></div>`;
 }
 
 /* ---------- Nuevo equipo ---------- */
