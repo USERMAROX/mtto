@@ -238,14 +238,15 @@ async function asignar(cods, tec) {
 /* ---------- B. Equipos y áreas ---------- */
 function vEquipos() {
   const f = G.f, q = norm(f.q);
-  const lista = G.res.activos.filter(x => (!f.estado || x.estado === f.estado) && (!f.tipo || x.tipo === f.tipo) && (!f.sector || x.sector === f.sector) &&
+  const tipoOk = x => !f.tipo || (f.tipo === 'MILAN' ? /^M/.test(x.codigo) : f.tipo === 'AREA' ? /^A/.test(x.codigo) : x.tipo === f.tipo);
+  const lista = G.res.activos.filter(x => (!f.estado || x.estado === f.estado) && tipoOk(x) && (!f.sector || x.sector === f.sector) &&
     (!q || norm(x.codigo + ' ' + x.nombre).includes(q))).sort((a, b) => a.codigo.localeCompare(b.codigo));
   const cuenta = e => G.res.activos.filter(x => x.estado === e).length;
   const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
   app.innerHTML = `<div class="col">
     <div class="row" style="flex-wrap:wrap"><div class="pills" id="pe">${[['ACTIVO', 'Activos (' + cuenta('ACTIVO') + ')'], ['INACTIVO', 'Inactivos (' + cuenta('INACTIVO') + ')'], ['BAJA', 'De baja (' + cuenta('BAJA') + ')'], ['', 'Todos']]
         .map(([k, t]) => `<button type="button" data-e="${k}" aria-pressed="${f.estado === k}">${t}</button>`).join('')}</div>
-      <select class="in" id="ft" style="width:140px"><option value="">Equipos y áreas</option><option value="EQUIPO" ${f.tipo === 'EQUIPO' ? 'selected' : ''}>Equipos</option><option value="AREA" ${f.tipo === 'AREA' ? 'selected' : ''}>Áreas</option></select>
+      <select class="in" id="ft" style="width:140px"><option value="">Equipos y áreas</option><option value="EQUIPO" ${f.tipo === 'EQUIPO' ? 'selected' : ''}>Equipos</option><option value="AREA" ${f.tipo === 'AREA' ? 'selected' : ''}>Áreas Subachoque</option><option value="MILAN" ${f.tipo === 'MILAN' ? 'selected' : ''}>Áreas Milán</option></select>
       <select class="in" id="fs" style="width:200px"><option value="">Todos los sectores</option>${sectores.map(s => `<option ${s === f.sector ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <input class="in grow" id="fq" placeholder="Buscar código o nombre" value="${esc(f.q)}" style="width:auto">
       ${puede() ? '<button class="btn" id="nuevo" type="button">+ Nuevo equipo o área</button>' : ''}</div>
@@ -299,12 +300,14 @@ function campo(id, label, val, extra) { return `<div><label class="f" for="${id}
 function sDatos() {
   const d = G.ficha.datos, sub = document.getElementById('sub'), dis = puede() ? '' : 'disabled';
   const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
+  const esEq = d.TIPO === 'EQUIPO';
   sub.innerHTML = `<div class="card pad col">
-    <div class="grid3">${campo('d_nombre', 'Nombre', d.NOMBRE)}${campo('d_sector', 'Sector', d.SECTOR, 'list="secs"')}${campo('d_categoria', 'Categoría', d.CATEGORIA)}
+    <div class="grid3">${campo('d_nombre', 'Nombre', d.NOMBRE)}
+      ${esEq ? `${campo('d_sector', 'Sector', d.SECTOR, 'list="secs"')}${campo('d_categoria', 'Categoría', d.CATEGORIA)}
       ${campo('d_marca', 'Marca', d.MARCA)}${campo('d_referencia', 'Referencia', d.REFERENCIA)}${campo('d_capacidad', 'Capacidad', d.CAPACIDAD)}
-      ${campo('d_fecha', 'Fecha de instalación', d.FECHA_INSTALACION, 'type="date"')}
+      ${campo('d_fecha', 'Fecha de instalación', d.FECHA_INSTALACION, 'type="date"')}` : `<div><span class="f">Tipo</span><div class="in" style="background:#F3F4F6">${/^M/.test(d.CODIGO) ? 'Área Milán' : 'Área Subachoque'}</div></div>`}
       <div><label class="f" for="d_resp">Asignado a</label><select class="in" id="d_resp" ${dis}><option value="">Sin asignar</option>${G.res.tecnicos.map(t => `<option ${t.nombre === d.RESPONSABLE ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('')}</select></div>
-      <div><span class="f">Contacto con alimentos</span><div class="seg" id="d_cont">${['Sí', 'No'].map(v => `<button type="button" ${dis} aria-pressed="${(/^s/i.test(String(d.CONTACTO_ALIMENTOS)) ? 'Sí' : 'No') === v}">${v}</button>`).join('')}</div></div></div>
+      ${esEq ? `<div><span class="f">Contacto con alimentos</span><div class="seg" id="d_cont">${['Sí', 'No'].map(v => `<button type="button" ${dis} aria-pressed="${(/^s/i.test(String(d.CONTACTO_ALIMENTOS)) ? 'Sí' : 'No') === v}">${v}</button>`).join('')}</div></div>` : ''}</div>
     <datalist id="secs">${sectores.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
     <div><label class="f" for="d_desc">Descripción</label><textarea class="in" id="d_desc" rows="2" ${dis}>${esc(d.DESCRIPCION || '')}</textarea></div>
     <div><span class="f">Estado</span><div class="seg" id="d_est">${['ACTIVO', 'INACTIVO', 'BAJA'].map(v => `<button type="button" ${dis} aria-pressed="${(d.ESTADO || 'ACTIVO') === v}">${v.charAt(0) + v.slice(1).toLowerCase()}</button>`).join('')}</div>
@@ -313,7 +316,7 @@ function sDatos() {
       <span class="row" style="gap:8px"><button class="btn g s" type="button" id="cpqr">Copiar enlace</button>${puede() ? '<button class="btn w s" type="button" id="regen">Regenerar token</button>' : ''}</span></div>
     ${puede() ? '<div class="row" style="justify-content:flex-end"><button class="btn" type="button" id="guardar">Guardar cambios</button></div>' : ''}</div>`;
   const segVal = id => { const b = [...document.querySelectorAll('#' + id + ' button')].find(x => x.getAttribute('aria-pressed') === 'true'); return b ? b.textContent : ''; };
-  ['d_cont', 'd_est'].forEach(id => document.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => document.querySelectorAll('#' + id + ' button').forEach(x => x.setAttribute('aria-pressed', x === b))));
+  ['d_cont', 'd_est'].filter(id => document.getElementById(id)).forEach(id => document.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => document.querySelectorAll('#' + id + ' button').forEach(x => x.setAttribute('aria-pressed', x === b))));
   document.getElementById('cpqr').onclick = () => { navigator.clipboard.writeText(d.URL_QR || ''); toast('Enlace copiado'); };
   if (!puede()) return;
   document.getElementById('regen').onclick = async () => { if (!confirm('La etiqueta QR impresa de ' + d.CODIGO + ' dejará de funcionar. ¿Continuar?')) return;
@@ -322,9 +325,10 @@ function sDatos() {
     const v = id => document.getElementById(id).value.trim();
     const est = segVal('d_est').toUpperCase();
     if (est === 'BAJA' && d.ESTADO !== 'BAJA' && !confirm('Dar de baja ' + d.CODIGO + ' lo retira definitivamente. ¿Continuar?')) return;
-    try { await api('g_guardarActivo', { a: d.CODIGO, datos: { nombre: v('d_nombre'), sector: v('d_sector'), categoria: v('d_categoria'), marca: v('d_marca'),
-      referencia: v('d_referencia'), capacidad: v('d_capacidad'), fechaInstalacion: v('d_fecha'), responsable: v('d_resp'), descripcion: v('d_desc'),
-      contacto: segVal('d_cont') === 'Sí' ? 'Si' : 'No', estado: est } });
+    const datos = { nombre: v('d_nombre'), responsable: v('d_resp'), descripcion: v('d_desc'), estado: est };
+    if (esEq) Object.assign(datos, { sector: v('d_sector'), categoria: v('d_categoria'), marca: v('d_marca'), referencia: v('d_referencia'),
+      capacidad: v('d_capacidad'), fechaInstalacion: v('d_fecha'), contacto: segVal('d_cont') === 'Sí' ? 'Si' : 'No' });
+    try { await api('g_guardarActivo', { a: d.CODIGO, datos });
       toast('Cambios guardados'); await recargar(); abrirFicha(d.CODIGO, 'datos'); } catch (e) { fallo(e); }
   };
 }
@@ -540,30 +544,42 @@ async function calcInd() {
 /* ---------- Nuevo equipo ---------- */
 function modalNuevo() {
   const m = document.createElement('div'); m.className = 'modal';
-  const sectores = [...new Set(G.res.activos.map(x => x.sector).filter(Boolean))].sort();
+  const sectores = [...new Set(G.res.activos.filter(x => x.tipo === 'EQUIPO').map(x => x.sector).filter(Boolean))].sort();
+  const sig = letra => { const max = G.res.activos.map(x => new RegExp('^' + letra + '(\\d+)$').exec(x.codigo)).filter(Boolean).reduce((a, r) => Math.max(a, +r[1]), 0);
+    return letra + String(max + 1).padStart(letra === 'A' ? 2 : 3, '0'); };
+  const TIPOS = [['EQUIPO', 'Equipo', 'E'], ['AREA', 'Área Subachoque', 'A'], ['AREA_MILAN', 'Área Milán', 'M']];
   m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Nuevo equipo o área"><div class="row" style="justify-content:space-between"><b style="font-size:19px">Nuevo equipo o área</b><button class="btn g s" type="button" id="mx">Cerrar</button></div>
-    <div><span class="f">Tipo</span><div class="seg" id="m_tipo"><button type="button" aria-pressed="true">Equipo</button><button type="button" aria-pressed="false">Área</button></div>
-      <div class="muted" style="margin-top:4px">El código se asigna automáticamente (siguiente libre) y no se reutiliza.</div></div>
+    <div><span class="f">Tipo</span><div class="seg" id="m_tipo">${TIPOS.map(([k, t], i) => `<button type="button" data-k="${k}" aria-pressed="${i === 0}">${t}</button>`).join('')}</div>
+      <div class="muted" style="margin-top:6px">Código que se asignará: <b class="code" id="m_cod">${sig('E')}</b> (siguiente libre; no se reutiliza)</div></div>
     <div><label class="f" for="m_nom">Nombre *</label><input class="in" id="m_nom"></div>
-    <div class="grid3"><div><label class="f" for="m_sec">Sector</label><input class="in" id="m_sec" list="msecs"></div>
+    <div class="grid3" id="m_eq"><div><label class="f" for="m_sec">Sector</label><input class="in" id="m_sec" list="msecs" placeholder="Elige o escribe uno nuevo"></div>
       <div><label class="f" for="m_mar">Marca</label><input class="in" id="m_mar"></div><div><label class="f" for="m_cap">Capacidad</label><input class="in" id="m_cap"></div>
-      <div><label class="f" for="m_resp">Asignar a</label><select class="in" id="m_resp"><option value="">Sin asignar</option>${G.res.tecnicos.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</select></div>
       <div><label class="f" for="m_fec">Instalación</label><input class="in" id="m_fec" type="date"></div>
       <div><span class="f">Contacto con alimentos</span><div class="seg" id="m_cont"><button type="button" aria-pressed="false">Sí</button><button type="button" aria-pressed="true">No</button></div></div></div>
+    <div><label class="f" for="m_resp">Asignar a</label><select class="in" id="m_resp"><option value="">Sin asignar</option>${G.res.tecnicos.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</select></div>
     <datalist id="msecs">${sectores.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
-    <div><label class="f" for="m_copia">Copiar plan de mantenimiento desde (opcional)</label><input class="in" id="m_copia" placeholder="Código de un equipo similar, ej. E054"></div>
+    <div><label class="f" for="m_copia">Copiar plan de mantenimiento desde (opcional)</label><input class="in" id="m_copia" placeholder="Código de un equipo o área similar, ej. E054 o A12"></div>
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn g" type="button" id="mc">Cancelar</button><button class="btn" type="button" id="mok">Crear</button></div></div>`;
   document.body.appendChild(m);
   const cerrar = () => m.remove();
   m.querySelector('#mx').onclick = cerrar; m.querySelector('#mc').onclick = cerrar;
-  ['m_tipo', 'm_cont'].forEach(id => m.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => m.querySelectorAll('#' + id + ' button').forEach(x => x.setAttribute('aria-pressed', x === b))));
+  let tipo = 'EQUIPO';
+  m.querySelectorAll('#m_tipo button').forEach(b => b.onclick = () => {
+    tipo = b.dataset.k;
+    m.querySelectorAll('#m_tipo button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    m.querySelector('#m_eq').classList.toggle('hidden', tipo !== 'EQUIPO');
+    m.querySelector('#m_cod').textContent = sig(TIPOS.find(t => t[0] === tipo)[2]);
+  });
+  m.querySelectorAll('#m_cont button').forEach(b => b.onclick = () => m.querySelectorAll('#m_cont button').forEach(x => x.setAttribute('aria-pressed', x === b)));
   const seg = id => [...m.querySelectorAll('#' + id + ' button')].find(x => x.getAttribute('aria-pressed') === 'true').textContent;
   m.querySelector('#mok').onclick = async () => {
     const v = id => m.querySelector('#' + id).value.trim();
     if (!v('m_nom')) return toast('El nombre es obligatorio');
+    const eq = tipo === 'EQUIPO';
+    const datos = { tipo, nombre: v('m_nom'), responsable: v('m_resp') };
+    if (eq) Object.assign(datos, { sector: v('m_sec'), marca: v('m_mar'), capacidad: v('m_cap'), fechaInstalacion: v('m_fec'), contacto: seg('m_cont') === 'Sí' ? 'Si' : 'No' });
     const b = m.querySelector('#mok'); b.disabled = true; b.textContent = 'Creando…';
-    try { const r = await api('g_guardarActivo', { nuevo: true, copiarPlanDe: v('m_copia'), datos: { tipo: seg('m_tipo') === 'Área' ? 'AREA' : 'EQUIPO', nombre: v('m_nom'),
-        sector: v('m_sec'), marca: v('m_mar'), capacidad: v('m_cap'), responsable: v('m_resp'), fechaInstalacion: v('m_fec'), contacto: seg('m_cont') === 'Sí' ? 'Si' : 'No' } });
+    try { const r = await api('g_guardarActivo', { nuevo: true, copiarPlanDe: v('m_copia'), datos });
       cerrar(); toast('Creado ' + r.codigo); await recargar(); abrirFicha(r.codigo, 'datos'); } catch (e) { fallo(e); b.disabled = false; b.textContent = 'Crear'; }
   };
 }
