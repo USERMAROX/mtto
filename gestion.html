@@ -478,21 +478,37 @@ async function sHV(mas) {
 }
 
 /* ---------- E. Indicadores ---------- */
-const IND = { desde: '', hasta: '', data: null };
+const IND = { desde: '', hasta: '', alcance: 'EQUIPOS', data: null };
 function barH(v, max, color) { return `<div class="bar" style="height:10px"><i style="width:${max ? Math.round(100 * v / max) : 0}%;${color ? 'background:' + color : ''}"></i></div>`; }
 async function vInd() {
   if (!IND.hasta) { const h = new Date(); IND.hasta = h.toISOString().slice(0, 10); IND.desde = new Date(h.getFullYear(), h.getMonth() - 2, 1).toISOString().slice(0, 10); }
   app.innerHTML = `<div class="col"><div class="row" style="flex-wrap:wrap"><div><label class="f" for="idd">Desde</label><input class="in" type="date" id="idd" value="${IND.desde}"></div>
     <div><label class="f" for="idh">Hasta</label><input class="in" type="date" id="idh" value="${IND.hasta}"></div>
+    <div><label class="f" for="ialc">Alcance</label><select class="in" id="ialc"><option value="EQUIPOS" ${IND.alcance === 'EQUIPOS' ? 'selected' : ''}>Solo equipos (como el indicador anterior)</option><option value="TODOS" ${IND.alcance === 'TODOS' ? 'selected' : ''}>Equipos y áreas</option></select></div>
     <button class="btn" type="button" id="igo" style="align-self:flex-end">Calcular</button>
-    <span class="muted" style="align-self:flex-end">Incluye el sistema nuevo y el histórico. Un periodo largo puede tardar hasta 30 s.</span></div><div id="ires"></div></div>`;
-  document.getElementById('igo').onclick = () => { IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.data = null; calcInd(); };
+    <button class="btn o" type="button" id="idesc" style="align-self:flex-end">Descargar no ejecutadas (Excel)</button>
+    <span class="muted" style="align-self:flex-end">Incluye el sistema nuevo, la Hoja 1 y el formulario. Un periodo largo puede tardar hasta 30 s.</span></div><div id="ires"></div></div>`;
+  document.getElementById('idesc').onclick = async () => {
+    IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.alcance = document.getElementById('ialc').value;
+    const clave = IND.desde + IND.hasta + IND.alcance;
+    if (!IND.data || IND.clave !== clave) { IND.data = null; IND.clave = clave; await calcInd(); }
+    if (!IND.data) return;
+    const filas = [['Mes', 'Código equipo', 'Equipo', 'Sector', 'N.° actividad', 'Actividad', 'Frecuencia', 'Ventana', 'Código esperado', 'Estado', 'Asignado a', 'Ubicación encontrada (validación)', 'Observación']]
+      .concat(IND.data.noEjecutadas);
+    const csv = '\ufeff' + filas.map(f => f.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'No_ejecutadas_' + IND.desde + '_a_' + IND.hasta + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(IND.data.noEjecutadas.length + ' actividades exportadas');
+  };
+  document.getElementById('igo').onclick = () => { IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.alcance = document.getElementById('ialc').value; IND.clave = IND.desde + IND.hasta + IND.alcance; IND.data = null; calcInd(); };
   calcInd();
 }
 async function calcInd() {
   const box = document.getElementById('ires');
   if (!IND.data) { box.innerHTML = '<div class="spin" aria-hidden="true"></div><p class="muted" style="text-align:center">Calculando indicadores…</p>';
-    try { IND.data = await api('g_indicadores', { desde: IND.desde, hasta: IND.hasta }); } catch (e) { box.innerHTML = ''; return fallo(e); } }
+    try { IND.data = await api('g_indicadores', { desde: IND.desde, hasta: IND.hasta, alcance: IND.alcance }); } catch (e) { box.innerHTML = ''; return fallo(e); } }
   const D = IND.data, T = D.cumplimiento.total, F = D.fallas;
   const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
   const cerradas = T.prog - T.AB;
@@ -509,7 +525,7 @@ async function calcInd() {
     <div class="kpis"><div class="kpi"><span>Cumplimiento</span><b>${pct(T.AT + T.EX, T.prog)} %</b><span class="muted">(AT + EX) / programadas · ${T.prog} programadas</span></div>
       <div class="kpi"><span>Oportunidad</span><b>${pct(T.AT, T.prog)} %</b><span class="muted">a tiempo / programadas</span></div>
       <div class="kpi"><span>No ejecutadas</span><b style="color:var(--ne)">${T.NE}</b><span class="muted">NE · ${T.JU} justificadas (JU)</span></div>
-      <div class="kpi"><span>Abiertas</span><b style="color:var(--ex)">${T.AB}</b><span class="muted">aún subsanables o en curso</span></div></div>
+      <div class="kpi"><span>En curso</span><b style="color:var(--ex)">${D.cumplimiento.enCurso}</b><span class="muted">ventanas abiertas aún sin ejecutar (no cuentan)</span></div></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div class="card pad grow col" style="min-width:420px"><div class="row" style="justify-content:space-between"><b>Cumplimiento por mes</b>
         <span class="muted"><span class="chip c-at">AT</span> <span class="chip c-ex">EX</span> <span class="chip c-ne">NE</span> <span class="chip c-gr">JU / abiertas</span></span></div>
