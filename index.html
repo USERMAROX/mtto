@@ -106,7 +106,7 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v8 · 2026-11-11';
+const VERSION = 'v9 · 2026-11-13';
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -461,28 +461,39 @@ function procesarQR(txt) {
 
 /* ---------- Buscador manual ---------- */
 function buscadorHTML() {
-  return `<div><label class="f" for="bq">Buscar equipo o área por código o nombre</label>
-    <div class="search"><input id="bq" class="in" placeholder="E036, M001, marmita, ptap…" autocomplete="off">
-    <button class="btn" id="bgo" type="button">Buscar</button></div></div><div id="bres" class="res"></div>`;
+  return `<div><label class="f" for="bq">Buscar equipo o área por nombre o código</label>
+    <input id="bq" class="in" placeholder="Escribe: marmita, caldera, cuarto frio, E036…" autocomplete="off" role="combobox" aria-controls="bres" aria-expanded="false"></div>
+    <div id="bres" class="res" role="listbox"></div>`;
+}
+const quitarT = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+async function catalogo() {
+  if (S.cat) return S.cat;
+  try { const c = JSON.parse(localStorage.getItem('mtto_cat') || 'null'); if (c && Date.now() - c.t < 6 * 3600e3) return (S.cat = c.a); } catch (e) {}
+  const r = await api('catalogo');
+  S.cat = r.activos;
+  try { localStorage.setItem('mtto_cat', JSON.stringify({ t: Date.now(), a: S.cat })); } catch (e) {}
+  return S.cat;
 }
 function activarBuscador() {
   const inp = document.getElementById('bq'), out = document.getElementById('bres');
-  const run = async () => {
-    const q = inp.value.trim();
-    if (q.length < 2) { out.innerHTML = '<span class="muted">Escribe al menos 2 caracteres.</span>'; return; }
-    out.innerHTML = '<span class="muted">Buscando…</span>';
-    try {
-      const r = await api('buscar', { q });
-      out.innerHTML = r.resultados.length ? r.resultados.map(x =>
-        `<button type="button" data-cod="${esc(x.codigo)}"><span class="row"><span class="code">${esc(x.codigo)}</span>
-          <span class="chip gr">${esc(x.tipo === 'AREA' ? 'Área' : 'Equipo')}</span></span>
-          <span style="font-weight:500">${esc(x.nombre)}</span>${x.sector ? `<span class="muted">${esc(x.sector)}</span>` : ''}</button>`).join('')
-        : '<div class="empty">Sin resultados. Prueba con otra palabra o con el código.</div>';
-      out.querySelectorAll('[data-cod]').forEach(b => b.onclick = () => irActivo(b.dataset.cod));
-    } catch (e) { if (!e.manejado) out.innerHTML = `<div class="note err">${esc(e.message)}</div>`; }
+  catalogo().catch(() => {});
+  const pintar = async () => {
+    const q = quitarT(inp.value.trim());
+    if (q.length < 2) { out.innerHTML = ''; inp.setAttribute('aria-expanded', 'false'); return; }
+    let cat;
+    try { cat = await catalogo(); } catch (e) { if (!e.manejado) out.innerHTML = `<div class="note err">${esc(e.message)}</div>`; return; }
+    const palabras = q.split(/\s+/).filter(Boolean);
+    const res = cat.filter(([c, n, s]) => { const t = quitarT(c + ' ' + n + ' ' + s); return palabras.every(w => t.includes(w)); })
+      .sort((a, b) => (quitarT(a[0]).startsWith(q) ? 0 : 1) - (quitarT(b[0]).startsWith(q) ? 0 : 1) || a[1].localeCompare(b[1])).slice(0, 15);
+    inp.setAttribute('aria-expanded', res.length ? 'true' : 'false');
+    out.innerHTML = res.length ? res.map(([c, n, s, t]) => `<button type="button" role="option" data-cod="${esc(c)}"><span class="row"><span class="code">${esc(c)}</span>
+        <span class="chip gr">${t === 'E' ? 'Equipo' : 'Área'}</span></span><span style="font-weight:500">${esc(n)}</span>${s ? `<span class="muted">${esc(s)}</span>` : ''}</button>`).join('')
+      : '<div class="empty">Sin coincidencias. Prueba con otra palabra.</div>';
+    out.querySelectorAll('[data-cod]').forEach(b => b.onclick = () => irActivo(b.dataset.cod));
   };
-  document.getElementById('bgo').onclick = run;
-  inp.onkeydown = e => { if (e.key === 'Enter') run(); };
+  let t;
+  inp.oninput = () => { clearTimeout(t); t = setTimeout(pintar, 120); };
+  inp.onkeydown = e => { if (e.key === 'Enter') { const b = out.querySelector('[data-cod]'); if (b) b.click(); } };
 }
 function irActivo(cod) {
   S.a = cod; S.k = ''; S.hv = { filtro: 'TODO', pagina: 0, items: [], total: 0 };
