@@ -496,7 +496,7 @@ async function calcInd() {
   const D = IND.data, T = D.cumplimiento.total, F = D.fallas;
   const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
   const cerradas = T.prog - T.AB;
-  const maxQ = Math.max(1, ...D.cumplimiento.porQuincena.map(q => q.prog));
+  const maxQ = Math.max(1, ...D.cumplimiento.porMes.map(q => q.prog));
   const seg = (q, k, col) => q[k] ? `<i style="height:${Math.round(180 * q[k] / maxQ)}px;background:${col};display:block"></i>` : '';
   const filaGrupo = (o, k) => { const x = o[k]; return `<tr><td>${esc(k)}</td><td>${x.prog}</td><td>${x.AT + x.EX}</td><td>${x.NE}</td><td>${x.JU}</td>
     <td><span class="chip ${pct(x.AT + x.EX, x.prog) >= 90 ? 'c-at' : pct(x.AT + x.EX, x.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(x.AT + x.EX, x.prog)} %</span></td></tr>`; };
@@ -504,23 +504,28 @@ async function calcInd() {
   let acum = 0;
   const maxT = Math.max(1, ...D.tecnicos.map(t => t.total));
   box.innerHTML = `<div class="col" style="gap:18px">
-    <b style="font-size:18px">A · Cumplimiento del plan <span class="muted">(${esc(D.periodo.desde)} a ${esc(D.periodo.hasta)}, tareas quincenales y mensuales)</span></b>
-    ${T.prog === 0 ? `<div class="note n-o">No hay programación cargada para este periodo. El cumplimiento se calcula contra la matriz de PLAN, que hoy empieza en la quincena en que se hizo la migración.
-      Para reconstruir periodos anteriores ejecuta en el libro <b>Mantenimiento › Programar quincenas pasadas</b> desde la quincena que necesites (por ejemplo Q01-2026). Las secciones B y C (fallas y técnicos) sí usan todo el histórico.</div>` : ''}
+    <b style="font-size:18px">A · Cumplimiento del plan <span class="muted">(${esc(D.periodo.desde)} a ${esc(D.periodo.hasta)} · quincenales: 2 por mes; mensuales: 1 por mes, cumplida en cualquiera de sus dos quincenas)</span></b>
+    ${T.prog === 0 ? '<div class="note n-o">No hay actividades quincenales o mensuales activas en el periodo elegido.</div>' : ''}
     <div class="kpis"><div class="kpi"><span>Cumplimiento</span><b>${pct(T.AT + T.EX, T.prog)} %</b><span class="muted">(AT + EX) / programadas · ${T.prog} programadas</span></div>
       <div class="kpi"><span>Oportunidad</span><b>${pct(T.AT, T.prog)} %</b><span class="muted">a tiempo / programadas</span></div>
       <div class="kpi"><span>No ejecutadas</span><b style="color:var(--ne)">${T.NE}</b><span class="muted">NE · ${T.JU} justificadas (JU)</span></div>
       <div class="kpi"><span>Abiertas</span><b style="color:var(--ex)">${T.AB}</b><span class="muted">aún subsanables o en curso</span></div></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-      <div class="card pad grow col" style="min-width:420px"><div class="row" style="justify-content:space-between"><b>Estado por quincena</b>
+      <div class="card pad grow col" style="min-width:420px"><div class="row" style="justify-content:space-between"><b>Cumplimiento por mes</b>
         <span class="muted"><span class="chip c-at">AT</span> <span class="chip c-ex">EX</span> <span class="chip c-ne">NE</span> <span class="chip c-gr">JU / abiertas</span></span></div>
-        <div style="display:flex;gap:8px;align-items:flex-end;height:200px">${D.cumplimiento.porQuincena.map(q => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
-          <div style="width:100%;max-width:38px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden" title="${q.q}: ${q.prog} programadas">${seg(q, 'AT', '#1B5E34')}${seg(q, 'EX', '#E39A4B')}${seg(q, 'NE', '#8E1F1F')}${seg(q, 'JU', '#AEB5BF')}${seg(q, 'AB', '#DCE0E5')}</div>
-          <span class="code" style="font-size:11px">${esc(q.q.slice(0, 3))}</span></div>`).join('') || '<span class="muted">Sin programación en el periodo.</span>'}</div></div>
+        <div style="display:flex;gap:10px;align-items:flex-end;height:220px">${D.cumplimiento.porMes.map(q => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+          <span class="code" style="font-size:12px">${pct(q.AT + q.EX, q.prog)}%</span>
+          <div style="width:100%;max-width:46px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden" title="${esc(q.mes)}: ${q.prog} programadas">${seg(q, 'AT', '#1B5E34')}${seg(q, 'EX', '#E39A4B')}${seg(q, 'NE', '#8E1F1F')}${seg(q, 'JU', '#AEB5BF')}${seg(q, 'AB', '#DCE0E5')}</div>
+          <span style="font-size:12px">${esc(q.mes)}</span></div>`).join('') || '<span class="muted">Sin programación en el periodo.</span>'}</div></div>
       <div class="card scroll" style="width:460px"><table><thead><tr><th>Clase</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
         ${['C1', 'C2', 'C3', 'C4', 'ÁREA', 'SIN'].filter(k => D.cumplimiento.porClase[k]).map(k => filaGrupo(D.cumplimiento.porClase, k)).join('') || '<tr><td colspan="6" class="muted">Sin datos</td></tr>'}</tbody></table></div></div>
-    <div class="card scroll" style="max-height:320px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
-      ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div>
+    <div class="card scroll" style="max-height:320px"><table><thead><tr><th>Mes</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
+      ${D.cumplimiento.porMes.map(q => `<tr><td>${esc(q.mes)}</td><td>${q.prog}</td><td>${q.AT + q.EX}</td><td>${q.NE}</td><td>${q.JU}</td><td><span class="chip ${pct(q.AT + q.EX, q.prog) >= 90 ? 'c-at' : pct(q.AT + q.EX, q.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(q.AT + q.EX, q.prog)} %</span></td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div class="card scroll grow" style="max-height:360px;min-width:420px"><table><thead><tr><th>Técnico asignado</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
+      ${Object.keys(D.cumplimiento.porTecnico).sort().map(k => filaGrupo(D.cumplimiento.porTecnico, k)).join('')}</tbody></table></div>
+    <div class="card scroll grow" style="max-height:360px;min-width:420px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
+      ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div></div>
 
 
     <b style="font-size:18px">B · Fallas y correctivos</b>
@@ -541,7 +546,7 @@ async function calcInd() {
       ${D.tecnicos.map(t => `<tr><td>${esc(t.tecnico)}</td><td><div class="row" style="gap:8px"><span class="code" style="width:70px">${t.prev} / ${t.corr}</span><div class="grow">${barH(t.total, maxT)}</div></div></td>
         <td>${Math.round(t.min / 60)}</td><td>${pct(t.foto, t.total)} %</td>
         <td>${t.avance == null ? '<span class="muted">—</span>' : `<span class="chip ${t.avance >= 90 ? 'c-at' : t.avance >= 75 ? 'c-ex' : 'c-ne'}">${t.avance} %</span> <span class="muted">de ${t.asignadas}</span>`}</td></tr>`).join('')}</tbody></table></div>
-    <span class="muted">El cumplimiento solo existe desde que la programación se lleva en el sistema nuevo; los registros del histórico alimentan fallas y técnicos.</span></div>`;
+    <span class="muted">Cumplimiento por técnico según la asignación actual de cada equipo. Una tarea cuenta como hecha si su código (N.° + equipo + quincena + año) existe en REGISTROS o en la Hoja 1 anterior.</span></div>`;
 }
 
 /* ---------- Nuevo equipo ---------- */
