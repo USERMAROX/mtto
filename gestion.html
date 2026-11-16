@@ -85,6 +85,7 @@ const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '
 const G = { token: null, tec: null, res: null, tab: 'asig', sel: new Set(), f: { q: '', sector: '', estado: 'ACTIVO', tipo: '', crit: '' },
             ficha: null, sub: 'datos', fichaCod: '' };
 const CL = { C1: ['c-ne', 'Crítico'], C2: ['c-ex', 'Importante'], C3: ['c-c3', 'Estándar'], C4: ['c-at', 'No crítico'] };
+function semaf(p) { return p >= 90 ? 'c-at' : p >= 75 ? 'c-ex' : 'c-ne'; }
 const chipC = c => c ? `<span class="chip ${CL[c][0]}">${c}</span>` : '<span class="chip c-gr">—</span>';
 const PROG = { TODAS: 'Todas las quincenas', PRIMERA: '1.ª quincena del mes', SEGUNDA: '2.ª quincena del mes', DESDE_ULTIMA: 'Desde la última ejecución', SIN_PROGRAMAR: 'Sin programar' };
 function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
@@ -168,8 +169,23 @@ function pedirArchivo(accept) {
   return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => ok(i.files[0]); i.click(); });
 }
 
+/* ---------- Quincenas para selectores ---------- */
+function opcionesQ(sel) {
+  const m = /Q(\d{2})-(\d{4})/.exec(G.res.quincena); let q = +m[2] * 24 + +m[1]; const out = [];
+  for (let i = 0; i < 24; i++, q--) { const y = Math.floor((q - 1) / 24), n = q - y * 24, e = 'Q' + String(n).padStart(2, '0') + '-' + y;
+    const mes = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][Math.ceil(n / 2) - 1];
+    out.push(`<option value="${e}" ${e === sel ? 'selected' : ''}>${e} · ${n % 2 ? '1.ª' : '2.ª'} de ${mes}${i === 0 ? ' (actual)' : ''}</option>`); }
+  return out.join('');
+}
+
 /* ---------- A. Asignación ---------- */
-function vAsig() {
+async function vAsig() {
+  G.qAsig = G.qAsig || G.res.quincena;
+  if (!G.avAsig || G.avAsig.quincena.etiqueta !== G.qAsig) {
+    app.innerHTML = '<div class="spin" aria-hidden="true"></div><p class="muted" style="text-align:center">Calculando avance de ' + esc(G.qAsig) + '…</p>';
+    try { G.avAsig = await api('avance', { q: G.qAsig }); } catch (e) { fallo(e); G.avAsig = { quincena: { etiqueta: G.qAsig }, equipo: [] }; }
+  }
+  const avPor = {}; (G.avAsig.equipo || []).forEach(t => avPor[t.tecnico] = t);
   const a = G.res.activos.filter(x => x.estado === 'ACTIVO');
   const tecs = G.res.tecnicos.map(t => t.nombre);
   const sin = a.filter(x => !x.responsable), fuera = a.filter(x => x.responsable && !x.responsableValido);
@@ -206,15 +222,20 @@ function vAsig() {
           <button class="btn" id="asignar" type="button" ${G.sel.size ? '' : 'disabled'}>Asignar</button></div>
           ${G.sel.size ? '<button class="btn g s" id="limpiar" type="button">Limpiar selección</button>' : ''}</div>` : ''}
       </div>
-      <div class="grow col"><div class="row" style="justify-content:space-between"><b>Carga por técnico · ${esc(G.res.quincena)}</b>
-        <span class="muted">Barra = tareas activas · naranja = más de 30 % sobre el promedio · ${puede() ? 'arrastra un equipo a una tarjeta o haz clic en un código para seleccionarlo' : 'solo lectura'}</span></div>
+      <div class="grow col"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><b>Carga y avance por técnico</b>
+        <span class="row" style="gap:8px"><label class="f" for="qasig" style="margin:0">Avance de</label><select class="in" id="qasig" style="width:260px">${opcionesQ(G.qAsig)}</select></span></div>
+        <span class="muted">Barra gris = carga (tareas activas; naranja si supera 30 % el promedio) · barra de color y % = avance de la quincena elegida · ${puede() ? 'arrastra un equipo a una tarjeta o haz clic en un código para seleccionarlo' : 'solo lectura'}</span>
         <div class="grid3">${tecs.map(t => { const c = carga[t], alto = c.ta > prom * 1.3;
+          const av = avPor[t] || { pct: 0, hechas: 0, total: 0, vencidas: 0 };
           return `<div class="tcard" data-tec="${esc(t)}"><div class="row" style="justify-content:space-between"><b style="font-size:14px">${esc(t)}</b>
-            <span class="muted">${c.eq.length} eq · ${c.ta} tareas</span></div>
-            <div class="bar"><i style="width:${Math.round(100 * c.ta / maxT)}%;${alto ? 'background:var(--ex)' : ''}"></i></div>
+            <span class="chip ${av.total ? semaf(av.pct) : 'c-gr'}" title="Avance ${esc(G.qAsig)}">${av.total ? av.pct + ' %' : 'sin tareas'}</span></div>
+            <span class="muted">${c.eq.length} eq · ${c.ta} tareas activas · ${esc(G.qAsig)}: ${av.hechas}/${av.total}${av.vencidas ? ' · remanente ' + av.vencidas : ''}${av.ejecutoEl ? ' · ejecutó ' + av.ejecutoEl : ''}</span>
+            <div class="bar" title="Carga"><i style="width:${Math.round(100 * c.ta / maxT)}%;background:${alto ? 'var(--ex)' : '#AEB5BF'}"></i></div>
+            <div class="bar" title="Avance"><i style="width:${av.pct}%;background:${av.pct >= 90 ? 'var(--at)' : av.pct >= 75 ? '#E39A4B' : 'var(--ne)'}"></i></div>
             <div style="display:flex;flex-wrap:wrap;gap:5px">${c.eq.sort((x, y) => x.codigo.localeCompare(y.codigo)).map(x => `<span class="eq ${G.sel.has(x.codigo) ? 'sel' : ''}" draggable="${puede()}" data-cod="${esc(x.codigo)}" title="${esc(x.nombre)}">${esc(x.codigo)}</span>`).join('') || '<span class="muted">Sin equipos</span>'}</div></div>`; }).join('')}</div></div>
     </div></div>`;
   const re = () => vAsig();
+  document.getElementById('qasig').onchange = e => { G.qAsig = e.target.value; vAsig(); };
   document.getElementById('aq').onchange = e => { G.f.q = e.target.value.trim(); re(); };
   document.getElementById('as').onchange = e => { G.f.sector = e.target.value; re(); };
   if (!puede()) return;
@@ -233,7 +254,7 @@ function vAsig() {
 }
 async function asignar(cods, tec) {
   if (!confirm('¿Asignar ' + cods.join(', ') + ' a ' + tec + '?')) return;
-  try { const r = await api('asignar', { codigos: cods, tecnico: tec }); toast(r.cambiados + ' asignado(s) a ' + tec); G.sel.clear(); await recargar(); vAsig(); } catch (e) { fallo(e); }
+  try { const r = await api('asignar', { codigos: cods, tecnico: tec }); toast(r.cambiados + ' asignado(s) a ' + tec); G.sel.clear(); G.avAsig = null; await recargar(); vAsig(); } catch (e) { fallo(e); }
 }
 
 /* ---------- B. Equipos y áreas ---------- */
@@ -539,8 +560,14 @@ async function calcInd() {
     <div class="card scroll" style="max-height:320px"><table><thead><tr><th>Mes</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
       ${D.cumplimiento.porMes.map(q => `<tr><td>${esc(q.mes)}</td><td>${q.prog}</td><td>${q.AT + q.EX}</td><td>${q.NE}</td><td>${q.JU}</td><td><span class="chip ${pct(q.AT + q.EX, q.prog) >= 90 ? 'c-at' : pct(q.AT + q.EX, q.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(q.AT + q.EX, q.prog)} %</span></td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-    <div class="card scroll grow" style="max-height:360px;min-width:420px"><table><thead><tr><th>Técnico asignado</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
-      ${Object.keys(D.cumplimiento.porTecnico).sort().map(k => filaGrupo(D.cumplimiento.porTecnico, k)).join('')}</tbody></table></div>
+    <div class="card scroll grow" style="max-height:420px;min-width:520px"><table><thead><tr><th>Técnico</th><th title="Tareas programadas en los equipos de los que es responsable">Prog. asignadas</th><th>Hechas</th><th>NE</th><th>JU</th><th>% de lo asignado</th><th title="Registros que este técnico hizo en el periodo, en cualquier equipo">Registros propios</th></tr></thead><tbody>
+      ${(() => { const P = D.cumplimiento.porTecnico, reg = {}; D.tecnicos.forEach(t => reg[t.tecnico] = t.total);
+        const nombres = [...new Set(Object.keys(P).concat(G.res.tecnicos.map(t => t.nombre)).concat(D.tecnicos.map(t => t.tecnico)))].filter(Boolean)
+          .sort((a, b) => (a === 'SIN ASIGNAR') - (b === 'SIN ASIGNAR') || a.localeCompare(b));
+        return nombres.map(k => { const x = P[k] || { prog: 0, AT: 0, EX: 0, NE: 0, JU: 0 }, p = pct(x.AT + x.EX, x.prog);
+          return `<tr><td>${esc(k)}</td><td>${x.prog}</td><td>${x.AT + x.EX}</td><td>${x.NE}</td><td>${x.JU}</td>
+            <td>${x.prog ? `<span class="chip ${p >= 90 ? 'c-at' : p >= 75 ? 'c-ex' : 'c-ne'}">${p} %</span>` : '<span class="muted">sin equipos asignados</span>'}</td><td>${reg[k] || 0}</td></tr>`; }).join(''); })()}</tbody></table>
+      ${D.cumplimiento.sinAsignar && D.cumplimiento.sinAsignar.length ? `<div class="note n-o" style="margin:10px">«SIN ASIGNAR» corresponde a ${D.cumplimiento.sinAsignar.length} equipo(s) del plan sin responsable válido: ${D.cumplimiento.sinAsignar.slice(0, 20).map(esc).join(' · ')}${D.cumplimiento.sinAsignar.length > 20 ? '…' : ''}</div>` : ''}</div>
     <div class="card scroll grow" style="max-height:360px;min-width:420px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
       ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div></div>
 
@@ -568,7 +595,7 @@ async function calcInd() {
 
 /* ---------- F. Avance de técnicos ---------- */
 const AV = { data: null, sel: '', det: null };
-const semaf = p => p >= 90 ? 'c-at' : p >= 75 ? 'c-ex' : 'c-ne';
+
 function descargarCSV(nombre, filas) {
   const csv = '\ufeff' + filas.map(f => f.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(';')).join('\r\n');
   const a = document.createElement('a');
@@ -576,46 +603,49 @@ function descargarCSV(nombre, filas) {
   a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
 }
 async function vTec(recargar) {
-  if (!AV.data || recargar) {
-    cargando('Calculando el avance de cada técnico…');
-    try { AV.data = await api('avance'); } catch (e) { return fallo(e); }
+  AV.q = AV.q || G.res.quincena;
+  if (!AV.data || recargar || AV.data.quincena.etiqueta !== AV.q) {
+    cargando('Calculando el avance de cada técnico en ' + AV.q + '…');
+    try { AV.data = await api('avance', { q: AV.q }); AV.det = null; } catch (e) { return fallo(e); }
   }
   const D = AV.data, eq = (D.equipo || []).slice();
-  if (!eq.length) { app.innerHTML = '<div class="note n-g">No hay tareas asignadas en la quincena actual.</div>'; return; }
-  const tot = eq.reduce((a, t) => ({ total: a.total + t.total, hechas: a.hechas + t.hechas, venc: a.venc + t.vencidas }), { total: 0, hechas: 0, venc: 0 });
+  const sinA = eq.find(t => t.tecnico === 'SIN ASIGNAR');
+  const tot = eq.filter(t => t.tecnico !== 'SIN ASIGNAR').reduce((a, t) => ({ total: a.total + t.total, hechas: a.hechas + t.hechas, venc: a.venc + t.vencidas }), { total: 0, hechas: 0, venc: 0 });
   const pctG = tot.total ? Math.round(100 * tot.hechas / tot.total) : 0;
-  const bajo = eq.filter(t => t.pct < 75).length;
+  const bajo = eq.filter(t => t.total && t.tecnico !== 'SIN ASIGNAR' && t.pct < 75).length;
   const orden = AV.orden || 'pct';
-  eq.sort((a, b) => orden === 'nombre' ? a.tecnico.localeCompare(b.tecnico) : orden === 'venc' ? b.vencidas - a.vencidas : a.pct - b.pct || b.total - a.total);
+  eq.sort((a, b) => (a.tecnico === 'SIN ASIGNAR') - (b.tecnico === 'SIN ASIGNAR') || (orden === 'nombre' ? a.tecnico.localeCompare(b.tecnico) : orden === 'venc' ? b.vencidas - a.vencidas : (a.total ? a.pct : 999) - (b.total ? b.pct : 999) || b.total - a.total));
   app.innerHTML = `<div class="col">
-    <div class="row" style="justify-content:space-between;flex-wrap:wrap"><b style="font-size:18px">Avance de técnicos · ${esc(D.quincena.etiqueta)} <span class="muted">(${esc(D.quincena.inicio)} a ${esc(D.quincena.fin)})</span></b>
-      <span class="row" style="gap:8px"><button class="btn g" type="button" id="trec">Actualizar</button><button class="btn o" type="button" id="tcsv">Descargar (Excel)</button><button class="btn g" type="button" id="tpri">Imprimir / PDF</button></span></div>
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap"><b style="font-size:18px">Avance de técnicos · ${esc(D.quincena.etiqueta)} <span class="muted">(${esc(D.quincena.inicio)} a ${esc(D.quincena.fin)}${D.quincena.actual ? ', en curso' : ', cerrada'})</span></b>
+      <span class="row" style="gap:8px"><select class="in" id="qtec" style="width:260px" aria-label="Quincena">${opcionesQ(AV.q)}</select><button class="btn g" type="button" id="trec">Actualizar</button><button class="btn o" type="button" id="tcsv">Descargar (Excel)</button><button class="btn g" type="button" id="tpri">Imprimir / PDF</button></span></div>
     <div class="kpis"><div class="kpi"><span>Avance del equipo</span><b>${pctG} %</b><span class="muted">${tot.hechas} de ${tot.total} tareas de la quincena</span></div>
-      <div class="kpi"><span>Técnicos con tareas</span><b>${eq.length}</b><span class="muted">${bajo} por debajo de 75 %</span></div>
+      <div class="kpi"><span>Técnicos con tareas</span><b>${eq.filter(t => t.total && t.tecnico !== 'SIN ASIGNAR').length}</b><span class="muted">${bajo} por debajo de 75 %</span></div>
       <div class="kpi"><span>Remanente por subsanar</span><b style="color:var(--ex)">${tot.venc}</b><span class="muted">vencidas de quincenas anteriores</span></div>
       <div class="kpi"><span>Pendientes de la quincena</span><b style="color:var(--ne)">${tot.total - tot.hechas}</b><span class="muted">aún sin ejecutar</span></div></div>
     <div class="row" style="gap:8px"><span class="muted">Ordenar:</span><div class="pills">${[['pct', 'Menor avance'], ['venc', 'Más remanente'], ['nombre', 'Nombre']].map(([k, t]) => `<button type="button" data-o="${k}" aria-pressed="${orden === k}">${t}</button>`).join('')}</div></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-      <div class="card scroll grow" style="min-width:560px"><table><thead><tr><th>Técnico</th><th style="width:34%">Avance de la quincena</th><th>Hechas</th><th>Pendientes</th><th>Remanente</th><th></th></tr></thead><tbody>
+      <div class="card scroll grow" style="min-width:560px"><table><thead><tr><th>Técnico</th><th style="width:30%">Avance de lo asignado</th><th>Hechas</th><th>Pendientes</th><th>Remanente</th><th title="Tareas de la quincena que este técnico ejecutó, estuvieran asignadas a él o a otro">Ejecutó él</th><th></th></tr></thead><tbody>
         ${eq.map(t => `<tr class="click" data-tec="${esc(t.tecnico)}" style="${AV.sel === t.tecnico ? 'background:#F3F7FC' : ''}"><td><b>${esc(t.tecnico)}</b></td>
-          <td><div class="row" style="gap:8px"><span class="chip ${semaf(t.pct)}" style="width:52px;text-align:center">${t.pct} %</span><div class="grow">${barH(t.hechas, t.total, t.pct >= 90 ? 'var(--at)' : t.pct >= 75 ? '#E39A4B' : 'var(--ne)')}</div></div></td>
+          <td><div class="row" style="gap:8px"><span class="chip ${t.total ? semaf(t.pct) : 'c-gr'}" style="min-width:52px;text-align:center">${t.total ? t.pct + ' %' : 'sin tareas'}</span><div class="grow">${barH(t.hechas, t.total, t.pct >= 90 ? 'var(--at)' : t.pct >= 75 ? '#E39A4B' : 'var(--ne)')}</div></div></td>
           <td>${t.hechas} / ${t.total}</td><td>${t.total - t.hechas}</td><td>${t.vencidas ? `<span class="chip c-ex">${t.vencidas}</span>` : '<span class="muted">0</span>'}</td>
-          <td><span class="btn g s">Ver tareas</span></td></tr>`).join('')}</tbody></table></div>
+          <td>${t.ejecutoEl || '<span class="muted">0</span>'}</td><td><span class="btn g s">Ver tareas</span></td></tr>`).join('')}</tbody></table>
+        ${sinA && sinA.total ? `<div class="note n-o" style="margin:10px">«SIN ASIGNAR» = equipos del plan sin responsable válido en ACTIVOS. Asígnalos en la pestaña Asignación: ${(sinA.equipos || []).slice(0, 15).map(esc).join(' · ')}${(sinA.equipos || []).length > 15 ? '…' : ''}</div>` : ''}</div>
       <div class="card pad col grow" id="tdet" style="min-width:420px">${AV.sel ? '<div class="spin" aria-hidden="true"></div>' : '<span class="muted">Selecciona un técnico para ver sus tareas pendientes, su remanente y lo ya ejecutado.</span>'}</div></div>
     <span class="muted">Avance = tareas asignadas al técnico en la quincena (según el responsable de cada equipo) que ya tienen registro, hechas por él o por otro técnico. Remanente = tareas de quincenas anteriores aún subsanables.</span></div>`;
   app.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { AV.orden = b.dataset.o; vTec(); });
+  document.getElementById('qtec').onchange = e => { AV.q = e.target.value; AV.sel = ''; vTec(); };
   app.querySelectorAll('tr[data-tec]').forEach(tr => tr.onclick = () => { AV.sel = tr.dataset.tec; AV.det = null; vTec(); });
   document.getElementById('trec').onclick = () => { AV.det = null; vTec(true); };
   document.getElementById('tpri').onclick = () => window.print();
   document.getElementById('tcsv').onclick = () => descargarCSV('Avance_tecnicos_' + D.quincena.etiqueta + '.csv',
-    [['Quincena', 'Técnico', 'Tareas asignadas', 'Hechas', 'Pendientes', '% avance', 'Remanente por subsanar']]
-      .concat(eq.map(t => [D.quincena.etiqueta, t.tecnico, t.total, t.hechas, t.total - t.hechas, t.pct, t.vencidas])));
+    [['Quincena', 'Técnico', 'Tareas asignadas', 'Hechas', 'Pendientes', '% avance', 'Remanente por subsanar', 'Tareas ejecutadas por él']]
+      .concat(eq.map(t => [D.quincena.etiqueta, t.tecnico, t.total, t.hechas, t.total - t.hechas, t.pct, t.vencidas, t.ejecutoEl || 0])));
   if (AV.sel) pintarDetalleTec();
 }
 async function pintarDetalleTec() {
   const box = document.getElementById('tdet'), nombre = AV.sel;
   if (!AV.det || AV.det.tecnico !== nombre) {
-    try { const r = await api('avance', { tecnico: nombre }); AV.det = r.detalle; } catch (e) { box.innerHTML = ''; return fallo(e); }
+    try { const r = await api('avance', { tecnico: nombre, q: AV.q }); AV.det = r.detalle; } catch (e) { box.innerHTML = ''; return fallo(e); }
   }
   if (AV.sel !== nombre || !document.getElementById('tdet')) return;
   const d = AV.det;
