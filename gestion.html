@@ -473,30 +473,124 @@ function sPlan() {
 }
 
 /* ---------- Ficha › Hoja de vida ---------- */
-const HV = { filtro: 'TODO', pagina: 0, items: [], total: 0, cod: '' };
+const HV = { filtro: 'TODO', pagina: 0, items: [], total: 0, cod: '', n: '', desde: '', hasta: '', porAct: {} };
 const chipCum = c => ({ AT: '<span class="chip c-at">AT</span>', EX: '<span class="chip c-ex">EX</span>', NE: '<span class="chip c-ne">NE</span>', JU: '<span class="chip c-gr">JU</span>' }[c] || '');
 async function sHV(mas) {
-  const d = G.ficha.datos, sub = document.getElementById('sub');
-  if (HV.cod !== d.CODIGO || !mas) { HV.cod = d.CODIGO; HV.pagina = 0; HV.items = []; }
+  const d = G.ficha.datos, sub = document.getElementById('sub'), plan = G.ficha.plan || [];
+  if (HV.cod !== d.CODIGO) Object.assign(HV, { cod: d.CODIGO, n: '', desde: '', hasta: '', filtro: 'TODO' });
+  if (!mas) { HV.pagina = 0; HV.items = []; }
   if (!HV.items.length) sub.innerHTML = '<div class="spin" aria-hidden="true"></div>';
-  try { const r = await api('hojaVida', { a: d.CODIGO, filtro: HV.filtro, pagina: HV.pagina }); HV.items = HV.items.concat(r.items); HV.total = r.total; }
-  catch (e) { return fallo(e); }
+  try {
+    const r = await api('hojaVida', { a: d.CODIGO, filtro: HV.filtro, pagina: HV.pagina, n: HV.n, desde: HV.desde, hasta: HV.hasta });
+    HV.items = HV.items.concat(r.items); HV.total = r.total; HV.porAct = r.porActividad || {};
+  } catch (e) { return fallo(e); }
   if (G.sub !== 'hv') return;
   const anular = G.tec.permisos.anular || G.tec.permisos.gestionar;
-  sub.innerHTML = `<div class="col"><div class="row" style="justify-content:space-between;flex-wrap:wrap">
+  const act = HV.n !== '' ? plan.find(t => String(t.n) === String(HV.n)) : null, res = HV.n !== '' ? HV.porAct[HV.n] : null;
+  sub.innerHTML = `<div class="col">
+    <div class="card pad col" style="gap:10px">
+      <div class="row" style="flex-wrap:wrap;align-items:flex-end">
+        <div class="grow" style="min-width:320px"><label class="f" for="hvact">Buscar por actividad del plan</label>
+          <select class="in" id="hvact"><option value="">Todas las actividades y correctivos</option>${plan.map(t => `<option value="${t.n}" ${String(t.n) === String(HV.n) ? 'selected' : ''}>${t.n} · ${esc(t.descripcion)} (${esc(t.frecuencia)})</option>`).join('')}</select></div>
+        <div><label class="f" for="hvd">Desde</label><input class="in" type="date" id="hvd" value="${HV.desde}"></div>
+        <div><label class="f" for="hvh">Hasta</label><input class="in" type="date" id="hvh" value="${HV.hasta}"></div>
+        <button class="btn" type="button" id="hvrep">Generar reporte de auditoría</button></div>
+      ${act ? `<div class="note ${res ? 'n-b' : 'n-o'}"><b>${act.n} · ${esc(act.descripcion)}</b><br>${res
+        ? `Última ejecución: <b>${esc(res.ultima)}</b> por ${esc(res.tecnico || '—')} (código ${esc(res.codigo)}) · ${res.veces} ejecución(es) registradas en total`
+        : 'No hay ejecuciones registradas de esta actividad.'}</div>` : ''}
+    </div>
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap">
       <div class="pills">${[['TODO', 'Todo'], ['PREVENTIVOS', 'Preventivos'], ['CORRECTIVOS', 'Correctivos'], ['NE', 'No ejecutadas']].map(([k, t]) => `<button type="button" data-hf="${k}" aria-pressed="${HV.filtro === k}">${t}</button>`).join('')}</div>
       <span class="muted">${HV.total} registros (sistema nuevo + histórico)</span></div>
-    <div class="card scroll" style="max-height:calc(100vh - 300px)"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Código</th><th>Técnico</th><th>Actividad</th><th>Estado</th><th></th></tr></thead><tbody>
+    <div class="card scroll" style="max-height:calc(100vh - 380px)"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Código</th><th>Técnico</th><th>Actividad</th><th>Estado</th><th></th></tr></thead><tbody>
     ${HV.items.map(x => `<tr style="${x.estado === 'ANULADO' ? 'opacity:.5' : ''}"><td style="white-space:nowrap">${esc(x.fecha)}</td><td>${esc(x.tipo)}</td><td class="code" style="font-size:12px">${esc(x.codigo)}</td>
       <td>${esc(x.tecnico)}</td><td>${esc(x.descripcion)}${x.foto && /^https/.test(x.foto) ? ` · <a href="${esc(x.foto)}" target="_blank" rel="noopener">foto</a>` : ''}</td>
       <td>${x.estado === 'ANULADO' ? '<span class="chip c-gr">Anulado</span>' : chipCum(x.cumplimiento) || (x.origen === 'historico' ? '<span class="chip c-gr">Histórico</span>' : '')}</td>
-      <td>${anular && x.origen === 'v2' && x.estado !== 'ANULADO' && x.id ? `<button class="btn g s" type="button" data-an="${esc(x.id)}">Anular</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin registros.</td></tr>'}</tbody></table></div>
+      <td>${anular && x.origen === 'v2' && x.estado !== 'ANULADO' && x.id ? `<button class="btn g s" type="button" data-an="${esc(x.id)}">Anular</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin registros con estos filtros.</td></tr>'}</tbody></table></div>
     ${HV.items.length < HV.total ? '<button class="btn o" type="button" id="hvmas" style="align-self:center">Cargar más</button>' : ''}</div>`;
-  sub.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { HV.filtro = b.dataset.hf; HV.items = []; sHV(); });
+  sub.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { HV.filtro = b.dataset.hf; sHV(); });
+  document.getElementById('hvact').onchange = e => { HV.n = e.target.value; sHV(); };
+  document.getElementById('hvd').onchange = e => { HV.desde = e.target.value; sHV(); };
+  document.getElementById('hvh').onchange = e => { HV.hasta = e.target.value; sHV(); };
+  document.getElementById('hvrep').onclick = modalReporte;
   const m = document.getElementById('hvmas'); if (m) m.onclick = () => { HV.pagina++; sHV(true); };
   sub.querySelectorAll('[data-an]').forEach(b => b.onclick = async () => {
     const motivo = prompt('Motivo de la anulación (queda en el historial):'); if (!motivo || motivo.trim().length < 5) return toast('Indica un motivo de al menos 5 caracteres');
-    try { await api('anular', { id: b.dataset.an, motivo }); toast('Registro anulado'); HV.items = []; sHV(); } catch (e) { fallo(e); } });
+    try { await api('anular', { id: b.dataset.an, motivo }); toast('Registro anulado'); sHV(); } catch (e) { fallo(e); } });
+}
+
+/* ---------- Reporte de auditoría ---------- */
+function modalReporte() {
+  const hoy = new Date(), hace = new Date(hoy.getFullYear() - 1, hoy.getMonth(), hoy.getDate());
+  const m = document.createElement('div'); m.className = 'modal';
+  const secciones = [['ficha', 'Ficha técnica del equipo y foto'], ['crit', 'Evaluación de criticidad'], ['docs', 'Documentos (certificados, fichas, manuales, soportes)'],
+                     ['plan', 'Plan de mantenimiento con última ejecución de cada actividad'], ['hist', 'Historial de actividades ejecutadas en el periodo']];
+  m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Reporte de auditoría"><b style="font-size:19px">Reporte de hoja de vida · ${esc(G.ficha.datos.CODIGO)} ${esc(G.ficha.datos.NOMBRE)}</b>
+    <div class="row"><div><label class="f" for="rd">Historial desde</label><input class="in" type="date" id="rd" value="${HV.desde || hace.toISOString().slice(0, 10)}"></div>
+      <div><label class="f" for="rh">Hasta</label><input class="in" type="date" id="rh" value="${HV.hasta || hoy.toISOString().slice(0, 10)}"></div></div>
+    <div class="col" style="gap:6px">${secciones.map(([k, t]) => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-sec="${k}" checked style="width:18px;height:18px"> ${t}</label>`).join('')}</div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rsolo" style="width:18px;height:18px" ${HV.n !== '' ? 'checked' : ''}> Solo la actividad seleccionada en el buscador${HV.n !== '' ? ' (N.° ' + esc(HV.n) + ')' : ''}</label>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn g" type="button" id="rc">Cancelar</button><button class="btn" type="button" id="rok">Generar</button></div></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#rc').onclick = () => m.remove();
+  m.querySelector('#rok').onclick = async () => {
+    const sec = {}; m.querySelectorAll('[data-sec]').forEach(c => sec[c.dataset.sec] = c.checked);
+    const desde = m.querySelector('#rd').value, hasta = m.querySelector('#rh').value, solo = m.querySelector('#rsolo').checked && HV.n !== '';
+    const w = window.open('', '_blank');
+    if (!w) return toast('El navegador bloqueó la ventana: permite las ventanas emergentes de esta página');
+    w.document.write('<p style="font-family:sans-serif;padding:20px">Generando reporte…</p>');
+    const b = m.querySelector('#rok'); b.disabled = true; b.textContent = 'Generando…';
+    try { w.document.open(); w.document.write(await htmlReporte(sec, desde, hasta, solo ? HV.n : '')); w.document.close(); m.remove(); }
+    catch (e) { w.close(); fallo(e); b.disabled = false; b.textContent = 'Generar'; }
+  };
+}
+async function dataUrlDe(id) { const r = await api('archivo', { id }); return 'data:' + r.mime + ';base64,' + r.base64; }
+async function htmlReporte(sec, desde, hasta, n) {
+  const F = G.ficha, d = F.datos, cr = F.crit && F.crit.actual;
+  const h = await api('hojaVida', { a: d.CODIGO, todos: true, desde, hasta, n });
+  const pa = h.porActividad || {};
+  const foto = sec.ficha && d.FOTO ? await dataUrlDe(d.FOTO).catch(() => '') : '';
+  const e = esc, fila = (k, v) => v ? `<tr><th>${k}</th><td>${e(v)}</td></tr>` : '';
+  const items = h.items, prev = items.filter(x => /prevent/i.test(x.tipo)).length, corr = items.filter(x => /correct/i.test(x.tipo)).length;
+  const plan = (F.plan || []).filter(t => !n || String(t.n) === String(n));
+  const PRG = { TODAS: 'Todas las quincenas', PRIMERA: '1.ª quincena del mes', SEGUNDA: '2.ª quincena del mes', DESDE_ULTIMA: 'Desde la última ejecución', SIN_PROGRAMAR: 'Sin programar' };
+  const TD = F.tiposDoc || {};
+  let k = 0; const titulo = t => `<h2>${++k}. ${t}</h2>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Hoja de vida ${e(d.CODIGO)} · ${e(d.NOMBRE)}</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;color:#16191D;margin:0;padding:28px 36px;font-size:12px}
+header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #16191D;padding-bottom:10px;margin-bottom:16px}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #AEB5BF;break-after:avoid}
+table{width:100%;border-collapse:collapse;margin-bottom:6px}th,td{border:1px solid #C9CED6;padding:5px 7px;text-align:left;vertical-align:top}
+thead th{background:#EEF1F5;font-size:11px;text-transform:uppercase}tbody th{background:#F7F8FA;width:28%}
+.ficha{display:flex;gap:18px;align-items:flex-start}.ficha table{flex:1}.ficha img{width:260px;max-height:260px;object-fit:cover;border:1px solid #C9CED6;border-radius:6px}
+.muted{color:#5B6470}.kpis{display:flex;gap:10px;margin:6px 0 10px}.kpis div{border:1px solid #C9CED6;border-radius:6px;padding:8px 12px}.kpis b{font-size:18px;display:block}
+.firmas{display:flex;gap:60px;margin-top:50px}.firmas div{flex:1;border-top:1px solid #16191D;padding-top:6px}
+.barra{position:sticky;top:0;background:#fff;padding:8px 0 12px;display:flex;gap:10px}.barra button{padding:8px 16px;font-size:14px;cursor:pointer}
+tr{break-inside:avoid}@media print{.barra{display:none}body{padding:0}}@page{size:letter;margin:14mm}
+</style></head><body>
+<div class="barra"><button onclick="window.print()">Imprimir / Guardar como PDF</button><button onclick="window.close()">Cerrar</button></div>
+<header><div><div class="muted">DEJAMU SUBACHOQUE S.A.S. · Gestión de mantenimiento</div><h1>Hoja de vida · ${e(d.CODIGO)} ${e(d.NOMBRE)}</h1></div>
+<div class="muted" style="text-align:right">Generado: ${e(new Date().toLocaleString('es-CO'))}<br>Por: ${e(G.tec.nombre)}<br>Periodo del historial: ${e(desde || 'inicio')} a ${e(hasta || 'hoy')}${n ? '<br>Filtrado a la actividad N.° ' + e(n) : ''}</div></header>
+${sec.ficha ? titulo('Ficha técnica del equipo') + `<div class="ficha"><table><tbody>
+  ${fila('Código', d.CODIGO)}${fila('Nombre', d.NOMBRE)}${fila('Tipo', d.TIPO)}${fila('Sector', d.SECTOR)}${fila('Marca', d.MARCA)}${fila('Referencia', d.REFERENCIA)}
+  ${fila('Capacidad', d.CAPACIDAD)}${fila('Fecha de instalación', d.FECHA_INSTALACION)}${fila('Categoría', d.CATEGORIA)}${fila('Contacto con alimentos', d.CONTACTO_ALIMENTOS)}
+  ${fila('Estado', d.ESTADO)}${fila('Técnico asignado', d.RESPONSABLE)}${fila('Descripción', d.DESCRIPCION)}</tbody></table>
+  ${foto ? `<img src="${foto}" alt="Foto del equipo">` : '<div class="muted" style="width:260px">Sin foto registrada</div>'}</div>` : ''}
+${sec.crit && d.TIPO === 'EQUIPO' ? titulo('Evaluación de criticidad (UNE-EN 16646)') + (cr ? `<table><thead><tr><th>Seguridad</th><th>Producción</th><th>Ambiental</th><th>Confiabilidad</th><th>Detectabilidad</th><th>Puntaje</th><th>Clase</th><th>Evaluó · fecha</th></tr></thead>
+  <tbody><tr>${cr.valores.map(v => `<td>${v}</td>`).join('')}<td><b>${cr.pts}</b>/25</td><td><b>${e(cr.clase)}</b></td><td>${e(cr.evaluo)} · ${e(cr.fecha)}</td></tr></tbody></table>` : '<p class="muted">Sin evaluación registrada.</p>') : ''}
+${sec.docs ? titulo('Documentos') + ((F.docs || []).filter(x => x.estado !== 'ELIMINADO').length ? `<table><thead><tr><th>Tipo</th><th>Documento</th><th>Cargado</th><th>Vigencia</th><th>Estado</th><th>Registro</th></tr></thead><tbody>
+  ${F.docs.filter(x => x.estado !== 'ELIMINADO').map(x => `<tr><td>${e(TD[x.tipo] || x.tipo)}</td><td>${e(x.nombre)}</td><td>${e(x.fecha)}</td><td>${e(x.vigencia || 'Indefinida')}</td><td>${e(x.estado)}</td><td>${e(x.registro || '')}</td></tr>`).join('')}</tbody></table>
+  <p class="muted">Los archivos están disponibles en el sistema (Gestión › ficha del equipo › Documentos).</p>` : '<p class="muted">Sin documentos cargados.</p>') : ''}
+${sec.plan ? titulo('Plan de mantenimiento') + `<table><thead><tr><th>N.°</th><th>Actividad</th><th>Frecuencia</th><th>Programación</th><th>Estado</th><th>Última ejecución</th><th>Ejecuciones</th></tr></thead><tbody>
+  ${plan.map(t => { const r = pa[t.n]; return `<tr><td>${t.n}</td><td>${e(t.descripcion)}</td><td>${e(t.frecuencia)}</td><td>${e(PRG[t.programacion] || '')}</td><td>${t.estado === 'ACTIVO' ? 'Activa' : 'Inactiva'}</td>
+    <td>${r ? e(r.ultima) + '<br><span class="muted">' + e(r.tecnico || '') + '</span>' : '<span class="muted">Sin registro</span>'}</td><td>${r ? r.veces : 0}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted">Sin actividades.</td></tr>'}</tbody></table>` : ''}
+${sec.hist ? titulo('Historial de actividades ejecutadas') + `<div class="kpis"><div><span class="muted">Registros</span><b>${items.length}</b></div><div><span class="muted">Preventivos</span><b>${prev}</b></div><div><span class="muted">Correctivos</span><b>${corr}</b></div></div>
+  <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Código</th><th>Técnico</th><th>Actividad realizada</th><th>Operativo</th><th>Estado</th></tr></thead><tbody>
+  ${items.map(x => `<tr><td style="white-space:nowrap">${e(x.fecha)}</td><td>${e(x.tipo)}</td><td>${e(x.codigo)}</td><td>${e(x.tecnico)}</td><td>${e(x.descripcion)}${x.foto && /^https/.test(x.foto) ? ' <a href="' + e(x.foto) + '">[foto]</a>' : ''}</td>
+    <td>${e(x.operativo || '')}</td><td>${x.estado === 'ANULADO' ? 'Anulado' : e(x.cumplimiento || (x.origen === 'historico' ? 'Histórico' : ''))}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Sin registros en el periodo.</td></tr>'}</tbody></table>` : ''}
+<div class="firmas"><div>Elaboró</div><div>Revisó</div><div>Aprobó</div></div>
+</body></html>`;
 }
 
 /* ---------- E. Indicadores ---------- */
