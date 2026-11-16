@@ -494,6 +494,8 @@ async function sHV(mas) {
           <select class="in" id="hvact"><option value="">Todas las actividades y correctivos</option>${plan.map(t => `<option value="${t.n}" ${String(t.n) === String(HV.n) ? 'selected' : ''}>${t.n} · ${esc(t.descripcion)} (${esc(t.frecuencia)})</option>`).join('')}</select></div>
         <div><label class="f" for="hvd">Desde</label><input class="in" type="date" id="hvd" value="${HV.desde}"></div>
         <div><label class="f" for="hvh">Hasta</label><input class="in" type="date" id="hvh" value="${HV.hasta}"></div>
+        <button class="btn o" type="button" id="hvfil">Aplicar fechas</button>
+        ${HV.desde || HV.hasta ? '<button class="btn g" type="button" id="hvlim">Quitar fechas</button>' : ''}
         <button class="btn" type="button" id="hvrep">Generar reporte de auditoría</button></div>
       ${act ? `<div class="note ${res ? 'n-b' : 'n-o'}"><b>${act.n} · ${esc(act.descripcion)}</b><br>${res
         ? `Última ejecución: <b>${esc(res.ultima)}</b> por ${esc(res.tecnico || '—')} (código ${esc(res.codigo)}) · ${res.veces} ejecución(es) registradas en total`
@@ -510,8 +512,17 @@ async function sHV(mas) {
     ${HV.items.length < HV.total ? '<button class="btn o" type="button" id="hvmas" style="align-self:center">Cargar más</button>' : ''}</div>`;
   sub.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { HV.filtro = b.dataset.hf; sHV(); });
   document.getElementById('hvact').onchange = e => { HV.n = e.target.value; sHV(); };
-  document.getElementById('hvd').onchange = e => { HV.desde = e.target.value; sHV(); };
-  document.getElementById('hvh').onchange = e => { HV.hasta = e.target.value; sHV(); };
+  // Las fechas no recargan al escribir (se perdía el foco al digitar el año): se aplican con el botón o con Enter
+  const valida = v => !v || /^(19|20)\d{2}-\d{2}-\d{2}$/.test(v);
+  const aplicar = () => {
+    const d1 = document.getElementById('hvd').value, d2 = document.getElementById('hvh').value;
+    if (!valida(d1) || !valida(d2)) return toast('Revisa las fechas: el año debe tener 4 dígitos');
+    if (d1 && d2 && d1 > d2) return toast('La fecha «Desde» es posterior a «Hasta»');
+    HV.desde = d1; HV.hasta = d2; sHV();
+  };
+  document.getElementById('hvfil').onclick = aplicar;
+  ['hvd', 'hvh'].forEach(id => document.getElementById(id).onkeydown = ev => { if (ev.key === 'Enter') aplicar(); });
+  const lim = document.getElementById('hvlim'); if (lim) lim.onclick = () => { HV.desde = ''; HV.hasta = ''; sHV(); };
   document.getElementById('hvrep').onclick = modalReporte;
   const m = document.getElementById('hvmas'); if (m) m.onclick = () => { HV.pagina++; sHV(true); };
   sub.querySelectorAll('[data-an]').forEach(b => b.onclick = async () => {
