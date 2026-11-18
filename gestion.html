@@ -614,7 +614,9 @@ async function vInd() {
     <div><label class="f" for="ialc">Alcance</label><select class="in" id="ialc"><option value="EQUIPOS" ${IND.alcance === 'EQUIPOS' ? 'selected' : ''}>Solo equipos (como el indicador anterior)</option><option value="TODOS" ${IND.alcance === 'TODOS' ? 'selected' : ''}>Equipos y áreas</option></select></div>
     <button class="btn" type="button" id="igo" style="align-self:flex-end">Calcular</button>
     <button class="btn o" type="button" id="idesc" style="align-self:flex-end">Descargar no ejecutadas (Excel)</button>
+    <button class="btn" type="button" id="iinf" style="align-self:flex-end;background:#16191D">Informe para gerencia</button>
     <span class="muted" style="align-self:flex-end">Incluye el sistema nuevo, la Hoja 1 y el formulario. Un periodo largo puede tardar hasta 30 s.</span></div><div id="ires"></div></div>`;
+  document.getElementById('iinf').onclick = () => modalInforme();
   document.getElementById('idesc').onclick = async () => {
     IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.alcance = document.getElementById('ialc').value;
     const clave = IND.desde + IND.hasta + IND.alcance;
@@ -666,12 +668,14 @@ async function calcInd() {
       ${D.cumplimiento.porMes.map(q => `<tr><td>${esc(q.mes)}</td><td>${q.prog}</td><td>${q.AT + q.EX}</td><td>${q.NE}</td><td>${q.JU}</td><td><span class="chip ${pct(q.AT + q.EX, q.prog) >= 90 ? 'c-at' : pct(q.AT + q.EX, q.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(q.AT + q.EX, q.prog)} %</span></td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
     <div class="card scroll grow" style="max-height:420px;min-width:520px"><table><thead><tr><th>Técnico</th><th title="Tareas programadas en los equipos de los que es responsable">Prog. asignadas</th><th>Hechas</th><th>NE</th><th>JU</th><th>% de lo asignado</th><th title="Registros que este técnico hizo en el periodo, en cualquier equipo">Registros propios</th></tr></thead><tbody>
-      ${(() => { const P = D.cumplimiento.porTecnico, reg = {}; D.tecnicos.forEach(t => reg[t.tecnico] = t.total);
-        const nombres = [...new Set(Object.keys(P).concat(G.res.tecnicos.map(t => t.nombre)).concat(D.tecnicos.map(t => t.tecnico)))].filter(Boolean)
-          .sort((a, b) => (a === 'SIN ASIGNAR') - (b === 'SIN ASIGNAR') || a.localeCompare(b));
+      ${(() => { const P = D.cumplimiento.porTecnico, validos = new Set(G.res.tecnicos.map(t => t.nombre)), reg = {}, otros = {};
+        D.tecnicos.forEach(t => { if (validos.has(t.tecnico)) reg[t.tecnico] = t.total; else otros[t.tecnico || '(vacío)'] = t.total; });
+        const nOtros = Object.values(otros).reduce((a, b) => a + b, 0);
+        const nombres = G.res.tecnicos.map(t => t.nombre).sort().concat(P['SIN ASIGNAR'] ? ['SIN ASIGNAR'] : []);
         return nombres.map(k => { const x = P[k] || { prog: 0, AT: 0, EX: 0, NE: 0, JU: 0 }, p = pct(x.AT + x.EX, x.prog);
           return `<tr><td>${esc(k)}</td><td>${x.prog}</td><td>${x.AT + x.EX}</td><td>${x.NE}</td><td>${x.JU}</td>
-            <td>${x.prog ? `<span class="chip ${p >= 90 ? 'c-at' : p >= 75 ? 'c-ex' : 'c-ne'}">${p} %</span>` : '<span class="muted">sin equipos asignados</span>'}</td><td>${reg[k] || 0}</td></tr>`; }).join(''); })()}</tbody></table>
+            <td>${x.prog ? `<span class="chip ${p >= 90 ? 'c-at' : p >= 75 ? 'c-ex' : 'c-ne'}">${p} %</span>` : '<span class="muted">sin equipos asignados</span>'}</td><td>${reg[k] || 0}</td></tr>`; }).join('')
+          + (nOtros ? `<tr><td colspan="6"><b>Otros: contratistas o nombre no reconocido</b><div class="muted" style="font-size:12px">${Object.keys(otros).sort((a, b) => otros[b] - otros[a]).slice(0, 25).map(n => esc(n) + ' (' + otros[n] + ')').join(' · ')}${Object.keys(otros).length > 25 ? '…' : ''}</div></td><td>${nOtros}</td></tr>` : ''); })()}</tbody></table>
       ${D.cumplimiento.sinAsignar && D.cumplimiento.sinAsignar.length ? `<div class="note n-o" style="margin:10px">«SIN ASIGNAR» corresponde a ${D.cumplimiento.sinAsignar.length} equipo(s) del plan sin responsable válido: ${D.cumplimiento.sinAsignar.slice(0, 20).map(esc).join(' · ')}${D.cumplimiento.sinAsignar.length > 20 ? '…' : ''}</div>` : ''}</div>
     <div class="card scroll grow" style="max-height:360px;min-width:420px"><table><thead><tr><th>Sector</th><th>Prog.</th><th>Hechas</th><th>NE</th><th>JU</th><th>%</th></tr></thead><tbody>
       ${Object.keys(D.cumplimiento.porSector).sort().map(k => filaGrupo(D.cumplimiento.porSector, k)).join('')}</tbody></table></div></div>
@@ -692,7 +696,9 @@ async function calcInd() {
 
     <b style="font-size:18px">C · Técnicos</b>
     <div class="card scroll"><table><thead><tr><th>Técnico</th><th style="width:30%">Registros (prev. / corr.)</th><th>Horas</th><th>Con foto</th><th>Avance quincena actual</th></tr></thead><tbody>
-      ${D.tecnicos.map(t => `<tr><td>${esc(t.tecnico)}</td><td><div class="row" style="gap:8px"><span class="code" style="width:70px">${t.prev} / ${t.corr}</span><div class="grow">${barH(t.total, maxT)}</div></div></td>
+      ${(() => { const validos = new Set(G.res.tecnicos.map(t => t.nombre)), o = { tecnico: 'Otros: contratistas o nombre no reconocido', prev: 0, corr: 0, min: 0, foto: 0, total: 0, avance: null, asignadas: 0 };
+        D.tecnicos.filter(t => !validos.has(t.tecnico)).forEach(t => ['prev', 'corr', 'min', 'foto', 'total'].forEach(k => o[k] += t[k]));
+        return D.tecnicos.filter(t => validos.has(t.tecnico)).concat(o.total ? [o] : []); })().map(t => `<tr><td>${esc(t.tecnico)}</td><td><div class="row" style="gap:8px"><span class="code" style="width:70px">${t.prev} / ${t.corr}</span><div class="grow">${barH(t.total, maxT)}</div></div></td>
         <td>${Math.round(t.min / 60)}</td><td>${pct(t.foto, t.total)} %</td>
         <td>${t.avance == null ? '<span class="muted">—</span>' : `<span class="chip ${t.avance >= 90 ? 'c-at' : t.avance >= 75 ? 'c-ex' : 'c-ne'}">${t.avance} %</span> <span class="muted">de ${t.asignadas}</span>`}</td></tr>`).join('')}</tbody></table></div>
     <span class="muted">Cumplimiento por técnico según la asignación actual de cada equipo. Una tarea cuenta como hecha si su código (N.° + equipo + quincena + año) existe en REGISTROS o en la Hoja 1 anterior.</span></div>`;
@@ -770,6 +776,222 @@ async function pintarDetalleTec() {
       .concat(d.vencidas.map(t => ['Remanente', t.activo, t.nombreActivo, t.clase, t.codigo, t.descripcion, t.frecuencia, t.quincena, '', t.justificacion || '']))
       .concat(pend.map(t => ['Pendiente', t.activo, t.nombreActivo, t.clase, t.codigo, t.descripcion, t.frecuencia, t.quincena, '', t.justificacion || '']))
       .concat(hechas.map(t => ['Ejecutada', t.activo, t.nombreActivo, t.clase, t.codigo, t.descripcion, t.frecuencia, t.quincena, t.ejecutor || '', ''])));
+}
+
+/* ---------- Informe de indicadores para gerencia ---------- */
+function modalInforme() {
+  const hoy = new Date(), ini = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Informe para gerencia"><b style="font-size:19px">Informe de indicadores para gerencia</b>
+    <span class="muted">Recomendado: 6 meses, para mostrar tendencias.</span>
+    <div class="row"><div><label class="f" for="gd">Desde</label><input class="in" type="date" id="gd" value="${IND.desde || ini.toISOString().slice(0, 10)}"></div>
+      <div><label class="f" for="gh">Hasta</label><input class="in" type="date" id="gh" value="${IND.hasta || hoy.toISOString().slice(0, 10)}"></div></div>
+    <b style="font-size:14px">Metas</b>
+    <div class="grid3"><div><label class="f" for="m1">Cumplimiento del plan (%)</label><input class="in" type="number" id="m1" value="90"></div>
+      <div><label class="f" for="m2">Equipos críticos C1/C2 (%)</label><input class="in" type="number" id="m2" value="95"></div>
+      <div><label class="f" for="m3">Oportunidad (%)</label><input class="in" type="number" id="m3" value="85"></div>
+      <div><label class="f" for="m4">Preventivo sobre total (%)</label><input class="in" type="number" id="m4" value="80"></div>
+      <div><label class="f" for="m5">MTTR máximo (min)</label><input class="in" type="number" id="m5" value="90"></div>
+      <div><label class="f" for="m6">Remanente máximo (tareas)</label><input class="in" type="number" id="m6" value="20"></div></div>
+    <div><label class="f" for="gcon">Conclusiones del periodo (aparecen en el resumen ejecutivo; una por línea)</label><textarea class="in" id="gcon" rows="4" placeholder="Ej.: El cumplimiento del plan subió de 81 % a 92 %…"></textarea></div>
+    <div><label class="f" for="gdec">Decisiones o recursos que se solicitan a gerencia (una por línea)</label><textarea class="in" id="gdec" rows="3" placeholder="Ej.: Aprobar el piloto de monitoreo con CT en 6 equipos críticos"></textarea></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn g" type="button" id="gc">Cancelar</button><button class="btn" type="button" id="gok">Generar informe</button></div></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#gc').onclick = () => m.remove();
+  m.querySelector('#gok').onclick = async () => {
+    const v = id => m.querySelector('#' + id).value;
+    const metas = { cumpl: +v('m1'), crit: +v('m2'), oport: +v('m3'), pc: +v('m4'), mttr: +v('m5'), backlog: +v('m6') };
+    const w = window.open('', '_blank');
+    if (!w) return toast('Permite las ventanas emergentes de esta página para ver el informe');
+    w.document.write('<p style="font-family:sans-serif;padding:24px">Calculando indicadores… (puede tardar hasta 30 s)</p>');
+    const btn = m.querySelector('#gok'); btn.disabled = true; btn.textContent = 'Generando…';
+    try {
+      const D = await api('g_indicadores', { desde: v('gd'), hasta: v('gh'), alcance: 'EQUIPOS' });
+      w.document.open(); w.document.write(htmlInforme(D, metas, v('gcon'), v('gdec'))); w.document.close(); m.remove();
+    } catch (e) { w.close(); fallo(e); btn.disabled = false; btn.textContent = 'Generar informe'; }
+  };
+}
+
+const MESN = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const fmtN = n => Number(n || 0).toLocaleString('es-CO');
+/* Gráficos SVG */
+function gGauge(p, meta, color) {
+  const a = Math.PI * Math.min(Math.max(p, 0), 100) / 100, x = 60 - 48 * Math.cos(a), y = 60 - 48 * Math.sin(a);
+  const am = Math.PI * meta / 100, mx = 60 - 54 * Math.cos(am), my = 60 - 54 * Math.sin(am), mx2 = 60 - 42 * Math.cos(am), my2 = 60 - 42 * Math.sin(am);
+  return `<svg viewBox="0 0 120 70" width="150" role="img" aria-label="${p} % frente a meta ${meta} %"><path d="M12 60 A48 48 0 0 1 108 60" fill="none" stroke="#E4E7EB" stroke-width="12"/>
+    <path d="M12 60 A48 48 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${color}" stroke-width="12"/>
+    <line x1="${mx.toFixed(1)}" y1="${my.toFixed(1)}" x2="${mx2.toFixed(1)}" y2="${my2.toFixed(1)}" stroke="#16191D" stroke-width="2"/>
+    <text x="60" y="58" text-anchor="middle" font-size="20" font-weight="700" fill="#16191D">${p}%</text></svg>`;
+}
+function gBarras(datos, series, alto) {   // datos: [{label, ...}], series: [{k, color, nombre}]
+  const H = alto || 150, W = Math.max(320, datos.length * 64), max = Math.max(1, ...datos.map(d => series.reduce((a, s) => a + (d[s.k] || 0), 0)));
+  const bw = Math.min(40, (W - 20) / datos.length - 14);
+  return `<svg viewBox="0 0 ${W} ${H + 34}" width="100%" style="max-height:${H + 34}px" role="img">${datos.map((d, i) => {
+    let y = H; const x = 14 + i * ((W - 20) / datos.length);
+    return series.map(s => { const h = (d[s.k] || 0) / max * (H - 16); y -= h; return h ? `<rect x="${x}" y="${y.toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" fill="${s.color}"/>` : ''; }).join('')
+      + `<text x="${x + bw / 2}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="11" fill="#16191D">${fmtN(series.reduce((a, s) => a + (d[s.k] || 0), 0))}</text>
+         <text x="${x + bw / 2}" y="${H + 16}" text-anchor="middle" font-size="11" fill="#5B6470">${d.label}</text>`; }).join('')}
+    <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#C9CED6"/></svg>`;
+}
+function gLinea(datos, k, color, meta) {
+  const H = 140, W = Math.max(320, datos.length * 64), xs = i => 30 + i * ((W - 50) / Math.max(1, datos.length - 1)), ys = v => H - 10 - v / 100 * (H - 30);
+  const pts = datos.map((d, i) => `${xs(i).toFixed(1)},${ys(d[k]).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H + 24}" width="100%" style="max-height:${H + 24}px" role="img">
+    ${meta ? `<line x1="20" x2="${W - 10}" y1="${ys(meta)}" y2="${ys(meta)}" stroke="#1B5E34" stroke-dasharray="5 4"/><text x="${W - 10}" y="${ys(meta) - 4}" text-anchor="end" font-size="10" fill="#1B5E34">meta ${meta}%</text>` : ''}
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="3"/>
+    ${datos.map((d, i) => `<circle cx="${xs(i)}" cy="${ys(d[k])}" r="4" fill="${color}"/><text x="${xs(i)}" y="${ys(d[k]) - 9}" text-anchor="middle" font-size="11" font-weight="700">${d[k]}%</text>
+      <text x="${xs(i)}" y="${H + 18}" text-anchor="middle" font-size="11" fill="#5B6470">${d.label}</text>`).join('')}</svg>`;
+}
+function gHBarras(items, color, sufijo) {
+  const max = Math.max(1, ...items.map(i => i.v));
+  return `<div style="display:flex;flex-direction:column;gap:5px">${items.map(i => `<div style="display:grid;grid-template-columns:42% 1fr 56px;gap:8px;align-items:center;font-size:11px">
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.l)}</span><span style="height:12px;background:#EEF1F5;border-radius:3px"><i style="display:block;height:12px;width:${(100 * i.v / max).toFixed(1)}%;background:${i.c || color};border-radius:3px"></i></span>
+    <b style="text-align:right">${fmtN(i.v)}${sufijo || ''}</b></div>`).join('') || '<span style="color:#5B6470;font-size:11px">Sin datos en el periodo</span>'}</div>`;
+}
+function gDona(partes) {
+  const tot = partes.reduce((a, p) => a + p.v, 0) || 1; let ang = -Math.PI / 2;
+  const arcos = partes.map(p => { const a2 = ang + 2 * Math.PI * p.v / tot, l = a2 - ang > Math.PI ? 1 : 0;
+    const d = `M${60 + 50 * Math.cos(ang)} ${60 + 50 * Math.sin(ang)} A50 50 0 ${l} 1 ${60 + 50 * Math.cos(a2 - 0.0001)} ${60 + 50 * Math.sin(a2 - 0.0001)}`; ang = a2;
+    return `<path d="${d}" fill="none" stroke="${p.c}" stroke-width="18"/>`; }).join('');
+  return `<svg viewBox="0 0 120 120" width="130" role="img">${arcos}<text x="60" y="66" text-anchor="middle" font-size="18" font-weight="700">${Math.round(100 * partes[0].v / tot)}%</text></svg>`;
+}
+
+function htmlInforme(D, M, conclus, decis) {
+  const e = esc, C = D.cumplimiento, F = D.fallas, Mg = D.magnitud;
+  const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+  const sem = (v, meta, inverso) => (inverso ? v <= meta : v >= meta) ? '#1B5E34' : (inverso ? v <= meta * 1.3 : v >= meta - 10) ? '#C77700' : '#8E1F1F';
+  const etM = k => { const [y, m] = k.split('-'); return MESN[+m - 1] + ' ' + y.slice(2); };
+  const porMes = C.porMes.map(q => ({ label: q.mes.replace(/^(\w{3}).* (\d{2})(\d{2})$/, '$1 $3'), pc: pct(q.AT + q.EX, q.prog), op: pct(q.AT, q.prog), AT: q.AT, EX: q.EX, NE: q.NE }));
+  const cumpl = pct(C.total.AT + C.total.EX, C.total.prog), oport = pct(C.total.AT, C.total.prog);
+  const cr = ['C1', 'C2'].reduce((a, k) => { const x = C.porClase[k] || {}; a.p += x.prog || 0; a.h += (x.AT || 0) + (x.EX || 0); return a; }, { p: 0, h: 0 });
+  const critP = pct(cr.h, cr.p), pcEv = pct(F.preventivos, F.preventivos + F.correctivos), pcHr = pct(F.horasPrev, F.horasPrev + F.horasCorr);
+  const rM = D.registrosPorMes.map(x => ({ label: etM(x.mes), prev: x.prev, corr: x.corr, hp: Math.round(x.minPrev / 60), hc: Math.round(x.minCorr / 60) }));
+  const validos = new Set(G.res.tecnicos.map(t => t.nombre));
+  const tecs = Object.keys(C.porTecnico).filter(k => validos.has(k) && C.porTecnico[k].prog).map(k => ({ l: k, v: pct(C.porTecnico[k].AT + C.porTecnico[k].EX, C.porTecnico[k].prog) })).sort((a, b) => b.v - a.v);
+  const horasTec = D.tecnicos.filter(t => validos.has(t.tecnico)).map(t => ({ l: t.tecnico, v: Math.round(t.min / 60) })).sort((a, b) => b.v - a.v).slice(0, 10);
+  const lineas = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
+  let n = 0;
+  const ficha = (titulo, valor, color, grafico, que, como, fuente, impacto, extra) => `<section class="ficha"><div class="fh"><span class="num">${++n}</span><h3>${titulo}</h3><span class="val" style="color:${color}">${valor}</span></div>
+    <div class="fb"><div class="graf">${grafico}${extra || ''}</div><dl><dt>Qué mide</dt><dd>${que}</dd><dt>Cómo se calcula</dt><dd>${como}</dd><dt>De dónde sale</dt><dd>${fuente}</dd><dt>Cómo influye en la empresa</dt><dd>${impacto}</dd></dl></div></section>`;
+  const kpi = (t, v, sub, color, svg) => `<div class="kpi"><span>${t}</span>${svg || `<b style="color:${color}">${v}</b>`}<small>${sub}</small></div>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe de indicadores de mantenimiento · ${e(D.periodo.desde)} a ${e(D.periodo.hasta)}</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#16191D;margin:0;background:#fff;font-size:12px}
+.pag{padding:26px 34px;max-width:1100px;margin:0 auto}.barra{position:sticky;top:0;background:#fff;padding:10px 34px;border-bottom:1px solid #DCE0E5;display:flex;gap:10px;z-index:2}
+.barra button{padding:8px 16px;font-size:14px;cursor:pointer;border-radius:6px;border:1px solid #AEB5BF;background:#fff}.barra button:first-child{background:#1D4E89;color:#fff;border-color:#1D4E89}
+.portada{background:#16191D;color:#fff;border-radius:14px;padding:26px 30px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
+.portada h1{font-size:26px;margin:4px 0}.portada .sub{color:#C9CED6;font-size:13px}
+.mag{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:16px 0}.mag div{background:#F3F5F8;border-radius:10px;padding:12px}.mag b{display:block;font-size:24px;color:#1D4E89}.mag span{font-size:11px;color:#5B6470}
+h2{font-size:18px;margin:26px 0 10px;padding-bottom:6px;border-bottom:3px solid #16191D}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{border:1px solid #DCE0E5;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#5B6470}.kpi b{font-size:26px}.kpi small{color:#5B6470;font-size:11px}
+.cajas{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.caja{border-radius:10px;padding:12px 14px}.caja ul{margin:6px 0 0;padding-left:18px}.caja li{margin:3px 0}
+.ficha{border:1px solid #DCE0E5;border-radius:12px;padding:12px 14px;margin:10px 0;break-inside:avoid}.fh{display:flex;align-items:center;gap:10px}
+.fh h3{font-size:15px;margin:0;flex:1}.fh .num{width:24px;height:24px;border-radius:12px;background:#16191D;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}.fh .val{font-size:22px;font-weight:700}
+.fb{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;margin-top:8px}.graf{min-width:0}dl{margin:0}dt{font-weight:700;font-size:11px;color:#1D4E89;text-transform:uppercase;margin-top:6px}dd{margin:2px 0 0}
+.ley{display:flex;gap:12px;font-size:10px;color:#5B6470;margin-top:4px}.ley i{display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px}
+.flujo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}.flujo div{border:2px solid #1D4E89;border-radius:8px;padding:8px 10px;font-weight:700;font-size:11px;text-align:center;min-width:110px}.flujo span{font-size:18px;color:#1D4E89}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #E4E7EB;padding:5px 6px;text-align:left;font-size:11px}th{color:#5B6470;text-transform:uppercase;font-size:10px}
+.firmas{display:flex;gap:60px;margin-top:40px}.firmas div{flex:1;border-top:1px solid #16191D;padding-top:6px}
+@media print{.barra{display:none}.pag{padding:0}h2{break-after:avoid}}@page{size:letter;margin:12mm}
+</style></head><body>
+<div class="barra"><button onclick="window.print()">Imprimir / Guardar como PDF</button><button onclick="window.close()">Cerrar</button></div>
+<div class="pag">
+<div class="portada"><div><div class="sub">DEJAMU SUBACHOQUE S.A.S. · Gestión de mantenimiento</div><h1>Informe de indicadores de mantenimiento</h1>
+  <div class="sub">Periodo: ${e(D.periodo.desde)} a ${e(D.periodo.hasta)} · Alcance: equipos de planta</div></div>
+  <div class="sub" style="text-align:right">Generado: ${e(new Date().toLocaleDateString('es-CO'))}<br>Por: ${e(G.tec.nombre)}</div></div>
+
+<h2>La magnitud de la información</h2>
+<div class="mag"><div><b>${fmtN(Mg.registrosHistoricos)}</b><span>registros de mantenimiento en la base histórica${Mg.desde ? ' (desde ' + e(Mg.desde.slice(0, 7)) + ')' : ''}</span></div>
+  <div><b>${fmtN(Mg.registrosPeriodo)}</b><span>registros analizados en este periodo (${fmtN(Mg.preventivosPeriodo)} preventivos · ${fmtN(Mg.correctivosPeriodo)} correctivos)</span></div>
+  <div><b>${fmtN(Mg.ventanasEvaluadas)}</b><span>tareas programadas evaluadas para el cumplimiento</span></div>
+  <div><b>${fmtN(Mg.equipos)}</b><span>equipos activos y ${fmtN(Mg.areas)} áreas · ${fmtN(Mg.tareasPlan)} actividades en el plan</span></div>
+  <div><b>${fmtN(Mg.fotosHistoricas)}</b><span>evidencias fotográficas · ${fmtN(Mg.tecnicos)} técnicos activos</span></div></div>
+
+<h2>Resumen ejecutivo</h2>
+<div class="kpis">
+  ${kpi('Cumplimiento del plan', '', 'meta ' + M.cumpl + ' %', '', gGauge(cumpl, M.cumpl, sem(cumpl, M.cumpl)))}
+  ${kpi('Equipos críticos C1/C2', '', 'meta ' + M.crit + ' %', '', gGauge(critP, M.crit, sem(critP, M.crit)))}
+  ${kpi('Oportunidad (a tiempo)', '', 'meta ' + M.oport + ' %', '', gGauge(oport, M.oport, sem(oport, M.oport)))}
+  ${kpi('Preventivo sobre total', '', 'meta ' + M.pc + ' % · por eventos', '', gGauge(pcEv, M.pc, sem(pcEv, M.pc)))}
+  ${kpi('Correctivos', fmtN(F.correctivos), 'en el periodo', '#8E1F1F')}
+  ${kpi('Remanente actual', fmtN(D.backlog), 'tareas vencidas por subsanar · máx. ' + M.backlog, sem(D.backlog, M.backlog, true))}
+  ${kpi('MTTR', F.mttr == null ? '—' : F.mttr + ' min', 'tiempo medio de reparación · máx. ' + M.mttr, F.mttr == null ? '#5B6470' : sem(F.mttr, M.mttr, true))}
+  ${kpi('Reincidencia', fmtN(D.reincidencia.equipos), 'equipos con falla repetida en ≤ 30 días', D.reincidencia.equipos ? '#C77700' : '#1B5E34')}</div>
+<div class="cajas"><div class="caja" style="background:#EEF4FB"><b>Conclusiones</b>${lineas(conclus).length ? '<ul>' + lineas(conclus).map(x => '<li>' + e(x) + '</li>').join('') + '</ul>' : '<p style="color:#5B6470">—</p>'}</div>
+  <div class="caja" style="background:#FDF1E4"><b>Decisiones y recursos solicitados</b>${lineas(decis).length ? '<ul>' + lineas(decis).map(x => '<li>' + e(x) + '</li>').join('') + '</ul>' : '<p style="color:#5B6470">—</p>'}</div></div>
+
+<h2>A · Cumplimiento del plan preventivo</h2>
+${ficha('Cumplimiento del plan preventivo', cumpl + ' %', sem(cumpl, M.cumpl), gLinea(porMes, 'pc', '#1D4E89', M.cumpl),
+  'Qué proporción de las tareas preventivas programadas se ejecutó.', 'Tareas ejecutadas ÷ tareas programadas en el mes. Las quincenales cuentan una vez por quincena; las mensuales, una vez por mes (en cualquiera de sus dos quincenas).',
+  'Plan de mantenimiento (PLAN) cruzado con ' + fmtN(Mg.ventanasEvaluadas) + ' tareas programadas y el código de cada registro.', 'Es la base de la confiabilidad: cada tarea no hecha es un riesgo de falla, de parada de línea y de no conformidad en auditorías sanitarias y de clientes.')}
+${ficha('Cumplimiento en equipos críticos (C1/C2)', critP + ' %', sem(critP, M.crit), gHBarras(['C1', 'C2', 'C3', 'C4'].filter(k => C.porClase[k]).map(k => ({ l: k + ' · ' + C.porClase[k].prog + ' tareas', v: pct(C.porClase[k].AT + C.porClase[k].EX, C.porClase[k].prog), c: k <= 'C2' ? '#8E1F1F' : '#1D4E89' })), '#1D4E89', ' %'),
+  'Cumplimiento del plan solo en los equipos de mayor criticidad.', 'Igual que el anterior, filtrado a los equipos clasificados C1 y C2 (metodología UNE-EN 16646).', 'Evaluación de criticidad de cada equipo + plan + registros.',
+  'Calderas, chiller, pasterizador u homogenizador fuera de servicio detienen la producción completa: aquí el cumplimiento debe ser el más alto.')}
+${ficha('Oportunidad', oport + ' %', sem(oport, M.oport), gLinea(porMes, 'op', '#1B5E34', M.oport),
+  'Qué parte del plan se ejecutó dentro de su quincena.', 'Tareas a tiempo (AT) ÷ programadas. Las ejecutadas tarde cuentan como subsanadas (EX).', 'Registros de la app con su código de quincena. En el histórico anterior a la app toda ejecución se toma como a tiempo.',
+  'Una tarea atrasada deja al equipo expuesto durante el atraso; la oportunidad mide la disciplina de la programación.')}
+${ficha('Remanente (tareas por subsanar)', fmtN(D.backlog), sem(D.backlog, M.backlog, true), gBarras(porMes.map(q => ({ label: q.label, NE: q.NE })), [{ k: 'NE', color: '#8E1F1F' }]) + '<div class="ley"><span><i style="background:#8E1F1F"></i>Tareas no ejecutadas por mes</span></div>',
+  'Trabajo atrasado acumulado.', 'Tareas vencidas de quincenas anteriores aún pendientes (hoy) y no ejecutadas por mes.', 'Programación de PLAN frente a registros.',
+  'Si el remanente crece de forma sostenida, el equipo está subdimensionado o la programación no es realista: es una alerta temprana de recursos.')}
+
+<h2>B · Fallas y correctivos</h2>
+${ficha('Correctivos por mes', fmtN(F.correctivos), '#8E1F1F', gBarras(rM.map(x => ({ label: x.label, corr: x.corr })), [{ k: 'corr', color: '#C0392B' }]) + '<div class="ley"><span><i style="background:#C0392B"></i>Correctivos registrados por mes</span></div>',
+  'Cuántas fallas se atendieron y su tendencia.', 'Conteo mensual de registros tipo «Mantenimiento correctivo».', fmtN(Mg.registrosPeriodo) + ' registros del periodo (sistema nuevo, Hoja 1 y formulario).',
+  'Es el resultado que el mantenimiento preventivo busca reducir: menos correctivos significa menos paradas no planeadas, menos desperdicio y menos horas extra.')}
+${ficha('Equipos con más fallas (Pareto)', F.pareto.length ? e(F.pareto[0].codigo) : '—', '#8E1F1F', gHBarras(F.pareto.slice(0, 10).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.n })), '#C0392B'),
+  'Dónde se concentran las fallas.', 'Correctivos por equipo, de mayor a menor (top 10).', 'Registros correctivos del periodo por código de equipo.',
+  'Pocos equipos suelen concentrar la mayoría de fallas: ahí se justifican reparaciones mayores, repotenciación, reemplazo o refuerzo del plan.')}
+${ficha('Relación preventivo / correctivo', pcEv + ' %', sem(pcEv, M.pc), `<div style="display:flex;gap:18px;align-items:center">${gDona([{ v: F.preventivos, c: '#1D4E89' }, { v: F.correctivos, c: '#C0392B' }])}<div>Por eventos: <b>${pcEv} %</b> preventivo<br>Por horas: <b>${pcHr} %</b> preventivo<br><span style="color:#5B6470">${fmtN(F.horasPrev)} h preventivas · ${fmtN(F.horasCorr)} h correctivas</span></div></div>`,
+  'Cuánto del trabajo es planeado frente a «apagar incendios».', 'Preventivos ÷ (preventivos + correctivos), por número de registros y por horas.', 'Tipo y tiempo de cada registro.',
+  'Indicador de madurez del mantenimiento. La referencia usual de la industria es que al menos el 80 % del trabajo sea planeado; por debajo, los costos y las paradas se disparan.')}
+${ficha('Tiempo medio de reparación (MTTR)', F.mttr == null ? '—' : F.mttr + ' min', F.mttr == null ? '#5B6470' : sem(F.mttr, M.mttr, true), gHBarras(F.pareto.filter(p => p.mttr != null).sort((a, b) => b.mttr - a.mttr).slice(0, 8).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.mttr })), '#C77700', ' min'),
+  'Cuánto tarda en promedio una reparación.', 'Promedio del tiempo registrado en los correctivos.', 'Tiempo reportado por el técnico. En el histórico se registraban rangos («<30 minutos»), por lo que el valor es aproximado; desde la app es exacto.',
+  'Cada minuto de reparación de un equipo de línea es producción detenida; reducir el MTTR (repuestos disponibles, procedimientos claros) aumenta la capacidad productiva.')}
+${ficha('Intervalo medio entre fallas (MTBF calendario)', D.mtbf.global == null ? '—' : D.mtbf.global + ' días', '#1D4E89', gHBarras(D.mtbf.equipos.slice(0, 8).map(p => ({ l: p.codigo + ' ' + p.nombre + ' (' + p.n + ' fallas)', v: p.dias })), '#C77700', ' d'),
+  'Cada cuánto falla un equipo.', 'Promedio de días entre correctivos consecutivos de un mismo equipo (equipos con 2 o más fallas). Se muestran los de intervalo más corto.', 'Fechas de los correctivos. Mide días calendario; con el monitoreo de funcionamiento real se medirá en horas de operación.',
+  'Intervalos cortos señalan equipos que fallan con frecuencia: candidatos a análisis de causa raíz.')}
+${ficha('Reincidencia de fallas', fmtN(D.reincidencia.equipos) + ' equipos', D.reincidencia.equipos ? '#C77700' : '#1B5E34', gHBarras(D.reincidencia.lista.map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.veces })), '#C77700', ' rep.'),
+  'Si las reparaciones resuelven el problema de fondo.', 'Equipos con un correctivo a 30 días o menos del anterior.', 'Fechas de los correctivos por equipo.',
+  'Una falla que se repite indica reparación provisional o causa no atendida: cuesta doble en horas, repuestos y producción.')}
+${ficha('Equipos que quedaron no operativos', fmtN(F.noOperativos.length), F.noOperativos.length ? '#8E1F1F' : '#1B5E34', F.noOperativos.length ? `<table><tr><th>Equipo</th><th>Fecha</th><th>Situación</th></tr>${F.noOperativos.slice(0, 8).map(x => `<tr><td>${e(x.codigo)} ${e(x.nombre)}</td><td>${e(x.fecha)}</td><td>${e(x.desc)}</td></tr>`).join('')}</table>` : '<span style="color:#5B6470">Ninguno según el último registro de cada equipo.</span>',
+  'Qué equipos siguen fuera de servicio.', 'Equipos cuyo último registro indica «no queda en condiciones de operar».', 'Campo «¿Queda operativo?» de cada registro.',
+  'Equipos fuera de servicio reducen capacidad o exigen reprogramar producción; requieren seguimiento y, a veces, decisión de compra.')}
+
+<h2>C · Personas y recursos</h2>
+${ficha('Cumplimiento por técnico', tecs.length + ' técnicos', '#1D4E89', gHBarras(tecs, '#1D4E89', ' %'),
+  'El cumplimiento del plan en los equipos asignados a cada técnico.', 'Tareas ejecutadas ÷ programadas de los equipos de los que cada técnico es responsable.', 'Asignación de equipos + plan + registros.',
+  'Permite reconocer el buen desempeño, detectar sobrecarga y balancear la asignación de equipos.')}
+${ficha('Horas-hombre de mantenimiento', fmtN(F.horasPrev + F.horasCorr) + ' h', '#1D4E89', gBarras(rM.map(x => ({ label: x.label, hp: x.hp, hc: x.hc })), [{ k: 'hp', color: '#1D4E89' }, { k: 'hc', color: '#C0392B' }]) + '<div class="ley"><span><i style="background:#1D4E89"></i>Horas preventivas</span><span><i style="background:#C0392B"></i>Horas correctivas</span></div>' + gHBarras(horasTec, '#5B6470', ' h'),
+  'En qué se invierte el tiempo del personal.', 'Suma del tiempo registrado por tipo de trabajo, por mes y por técnico.', 'Tiempo reportado en cada registro (aproximado en el histórico).',
+  'Muestra la capacidad real del equipo y cuánto tiempo se pierde en fallas que podrían prevenirse.')}
+${ficha('Motivos de no ejecución', fmtN(D.justificaciones.reduce((a, x) => a + x.n, 0)), '#5B6470', gHBarras(D.justificaciones.map(x => ({ l: x.motivo, v: x.n })), '#5B6470'),
+  'Qué impide cumplir el plan.', 'Tareas justificadas por los técnicos («no se pudo ejecutar»), agrupadas por motivo.', 'Justificaciones registradas en la app (disponibles desde su puesta en marcha).',
+  'Separa lo que depende de mantenimiento de lo que no (producción no libera el equipo, falta de repuestos): orienta decisiones entre áreas.')}
+${ficha('Servicios de contratistas', fmtN(D.contratistas.servicios) + ' (' + D.contratistas.pct + ' %)', '#5B6470', gHBarras(D.contratistas.top.map(x => ({ l: x.nombre, v: x.n })), '#5B6470'),
+  'Cuánto del trabajo depende de terceros.', 'Registros marcados como ejecutados por contratista, sobre el total del periodo.', 'Campo «quién ejecuta» de cada registro. Soportes documentales cargados: ' + fmtN(D.contratistas.conSoporte) + '.',
+  'Ayuda a decidir qué servicios internalizar o formalizar con contrato, y asegura que cada servicio tenga su soporte para auditorías.')}
+
+<h2>D · Lo que viene: monitoreo del funcionamiento real</h2>
+<div class="ficha"><p style="margin:0 0 6px">Hoy los indicadores se construyen con lo que el personal <b>reporta</b>. El siguiente paso es <b>medir</b> el estado real de los equipos críticos, sin depender de que alguien lo registre.</p>
+<div class="flujo"><div>Sensor de corriente (CT) en la alimentación del equipo</div><span>→</span><div>PLC: corriente → estado (operando · en vacío · parado)</div><span>→</span><div>Pasarela a internet (Node-RED)</div><span>→</span><div>Plataforma de mantenimiento</div><span>→</span><div>Indicadores en tiempo real</div></div>
+<table><tr><th>Indicador nuevo</th><th>Qué permitirá saber</th></tr>
+<tr><td><b>Disponibilidad</b></td><td>Porcentaje del tiempo en que cada equipo estuvo realmente apto para producir</td></tr>
+<tr><td><b>MTBF y MTTR reales</b></td><td>Medidos con las paradas registradas por el sensor, en horas de operación</td></tr>
+<tr><td><b>Paradas no reportadas</b></td><td>Paradas detectadas sin una solicitud asociada: fallas que hoy no llegan al sistema</td></tr>
+<tr><td><b>Utilización</b></td><td>Tiempo operando frente al tiempo disponible, para la planeación de producción</td></tr>
+<tr><td><b>Alerta temprana</b></td><td>Aumentos sostenidos de corriente que anticipan desgaste (rodamientos, desalineación, sobrecarga)</td></tr></table>
+<p style="margin:8px 0 0">Se complementa con las <b>solicitudes de mantenimiento por Telegram</b>: el personal autorizado reporta una falla desde el celular, el técnico de turno la atiende y el sistema mide el tiempo de respuesta y de solución. <b>Propuesta:</b> piloto en 5 a 8 equipos críticos (C1/C2).</p></div>
+
+<h2>Metodología y calidad de los datos</h2>
+<div class="ficha" style="font-size:11px;line-height:1.5"><ul style="margin:0;padding-left:18px">
+<li>Fuentes: registros del sistema de mantenimiento (app con QR), Hoja 1 y formulario anteriores, plan de mantenimiento, asignación de equipos y evaluación de criticidad.</li>
+<li>Una tarea preventiva cuenta como ejecutada si existe un registro con su código (N.° de actividad + equipo + quincena + año). Los registros duplicados cuentan una sola vez.</li>
+<li>Se evalúan solo equipos activos y no se cuentan los meses anteriores a su instalación.</li>
+<li>Los tiempos de los registros históricos se reportaban en rangos; el MTTR y las horas-hombre de esos meses son aproximados.</li>
+<li>Parte de los registros de febrero a octubre de 2026 se recuperaron de una consolidación previa, depurando duplicados y datos inconsistentes.</li></ul></div>
+<div class="firmas"><div>Elaboró · Gestión de Desarrollo</div><div>Revisó</div><div>Gerencia</div></div>
+</div></body></html>`;
 }
 
 /* ---------- Nuevo equipo ---------- */
