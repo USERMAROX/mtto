@@ -67,7 +67,7 @@ td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.cli
 </style>
 </head>
 <body>
-<div class="top"><b>DEJAMU · MANTENIMIENTO · GESTIÓN</b><div class="r"><span id="usr"></span><a href="./">App de campo</a><button id="salir" type="button">Salir</button></div></div>
+<div class="top"><b>DEJAMU · MANTENIMIENTO · GESTIÓN</b><span id="vers" style="font-size:11px;color:#AEB5BF;margin-left:12px"></span><div class="r"><span id="usr"></span><a href="./">App de campo</a><button id="salir" type="button">Salir</button></div></div>
 <nav class="tabs hidden" id="tabs" role="tablist">
   <button role="tab" data-t="asig" type="button">Asignación</button><button role="tab" data-t="eq" type="button">Equipos y áreas</button>
   <button role="tab" data-t="plan" type="button">Planes de mantenimiento</button><button role="tab" data-t="crit" type="button">Criticidad</button>
@@ -77,6 +77,7 @@ td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.cli
 <div id="toast" class="toast hidden" role="status"></div>
 
 <script>
+const VERSION_PAGINA = 'v1.00001';   // consecutivo de entrega (página de gestión)
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
 const app = document.getElementById('app');
@@ -128,7 +129,8 @@ const fallo = e => { if (!e.manejado) toast(e.message); };
 async function iniciar() {
   cargando('Verificando acceso…');
   try {
-    G.tec = (await api('sesion')).tecnico;
+    const ses = await api('sesion'); G.tec = ses.tecnico; G.versiones = ses.versiones || {};
+    document.getElementById('vers').textContent = 'Página ' + VERSION_PAGINA + ' · Servidor: Backend ' + (G.versiones.backend || 'sin versión') + ' · Gestión ' + (G.versiones.gestion || 'sin versión') + ' · Código ' + (G.versiones.codigo || 'sin versión');
     if (!(G.tec.permisos.gestionar || G.tec.permisos.anular)) return vistaLogin('Tu rol (' + G.tec.rol + ') no tiene acceso a la gestión.');
     document.getElementById('usr').textContent = G.tec.nombre + ' · ' + G.tec.rol;
     document.getElementById('tabs').classList.remove('hidden');
@@ -1015,7 +1017,8 @@ ${ficha('Servicios de contratistas', fmtN(D.contratistas.servicios) + ' (' + D.c
 <li>Una tarea preventiva cuenta como ejecutada si existe un registro con su código (N.° de actividad + equipo + quincena + año). Los registros duplicados cuentan una sola vez.</li>
 <li>Se evalúan solo equipos activos y no se cuentan los meses anteriores a su instalación.</li>
 <li>Los tiempos de los registros históricos se reportaban en rangos; el MTTR y las horas-hombre de esos meses son aproximados.</li>
-<li>Parte de los registros de febrero a octubre de 2026 se recuperaron de una consolidación previa, depurando duplicados y datos inconsistentes.</li></ul></div>
+<li>Parte de los registros de febrero a octubre de 2026 se recuperaron de una consolidación previa, depurando duplicados y datos inconsistentes.</li>
+<li>Versiones del sistema con que se generó: página ${e(VERSION_PAGINA)} · servidor ${e((G.versiones || {}).backend || '?')} / ${e((G.versiones || {}).gestion || '?')} / ${e((G.versiones || {}).codigo || '?')}.</li></ul></div>
 <div class="firmas"><div>Elaboró · Gestión de Desarrollo</div><div>Revisó</div><div>Gerencia</div></div>
 </div></body></html>`;
 }
