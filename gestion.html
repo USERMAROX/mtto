@@ -645,7 +645,7 @@ async function calcInd() {
   const seg = (q, k, col) => q[k] ? `<i style="height:${Math.round(180 * q[k] / maxQ)}px;background:${col};display:block"></i>` : '';
   const filaGrupo = (o, k) => { const x = o[k]; return `<tr><td>${esc(k)}</td><td>${x.prog}</td><td>${x.AT + x.EX}</td><td>${x.NE}</td><td>${x.JU}</td>
     <td><span class="chip ${pct(x.AT + x.EX, x.prog) >= 90 ? 'c-at' : pct(x.AT + x.EX, x.prog) >= 75 ? 'c-ex' : 'c-ne'}">${pct(x.AT + x.EX, x.prog)} %</span></td></tr>`; };
-  const maxP = Math.max(1, ...F.pareto.map(p => p.n)), totP = F.pareto.reduce((a, p) => a + p.n, 0);
+  const PE = F.paretoEquipos || F.pareto, maxP = Math.max(1, ...PE.map(p => p.n)), totP = PE.reduce((a, p) => a + p.n, 0);
   let acum = 0;
   const maxT = Math.max(1, ...D.tecnicos.map(t => t.total));
   box.innerHTML = `<div class="col" style="gap:18px">
@@ -687,11 +687,12 @@ async function calcInd() {
       <div class="kpi"><span>MTTR</span><b>${F.mttr == null ? '—' : F.mttr + ' min'}</b><span class="muted">promedio por correctivo</span></div>
       <div class="kpi"><span>Horas preventivo / total</span><b>${pct(F.horasPrev, F.horasPrev + F.horasCorr)} %</b><span class="muted">${F.horasPrev} h prev · ${F.horasCorr} h corr</span></div></div>
     <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-      <div class="card scroll grow" style="min-width:520px"><table><thead><tr><th>Equipo</th><th>Clase</th><th style="width:40%">Correctivos</th><th>% acum.</th><th>MTTR</th></tr></thead><tbody>
-        ${F.pareto.map(p => { acum += p.n; return `<tr><td><span class="code">${esc(p.codigo)}</span> ${esc(p.nombre)}</td><td>${chipC(p.clase)}</td>
+      <div class="card scroll grow" style="min-width:520px"><table><thead><tr><th>Equipo (solo E###)</th><th>Clase</th><th style="width:40%">Correctivos</th><th>% acum.</th><th>MTTR</th></tr></thead><tbody>
+        ${(F.paretoEquipos || F.pareto).map(p => { acum += p.n; return `<tr><td><span class="code">${esc(p.codigo)}</span> ${esc(p.nombre)}</td><td>${chipC(p.clase)}</td>
           <td><div class="row" style="gap:8px"><span class="code" style="width:28px">${p.n}</span><div class="grow">${barH(p.n, maxP)}</div></div></td>
           <td class="muted">${pct(acum, totP)} %</td><td class="muted">${p.mttr == null ? '—' : p.mttr + ' min'}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Sin correctivos.</td></tr>'}</tbody></table></div>
-      <div class="card pad col" style="width:380px"><b>Equipos que quedaron no operativos</b>
+      <div class="card pad col" style="width:380px"><b>Áreas con más correctivos</b>${gHBarras((F.paretoAreas || []).slice(0, 8).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.n })), '#C77700')}
+        <b style="margin-top:10px">Equipos que quedaron no operativos</b>
         ${F.noOperativos.map(n => `<div class="note n-r"><b class="code">${esc(n.codigo)}</b> ${esc(n.nombre)}<br><span style="font-size:12px">${esc(n.fecha)} · ${esc(n.desc)}</span></div>`).join('') || '<span class="muted">Ninguno según el último registro de cada equipo.</span>'}</div></div>
 
     <b style="font-size:18px">C · Técnicos</b>
@@ -939,9 +940,12 @@ ${ficha('Remanente (tareas por subsanar)', fmtN(D.backlog), sem(D.backlog, M.bac
 ${ficha('Correctivos por mes', fmtN(F.correctivos), '#8E1F1F', gBarras(rM.map(x => ({ label: x.label, corr: x.corr })), [{ k: 'corr', color: '#C0392B' }]) + '<div class="ley"><span><i style="background:#C0392B"></i>Correctivos registrados por mes</span></div>',
   'Cuántas fallas se atendieron y su tendencia.', 'Conteo mensual de registros tipo «Mantenimiento correctivo».', fmtN(Mg.registrosPeriodo) + ' registros del periodo (sistema nuevo, Hoja 1 y formulario).',
   'Es el resultado que el mantenimiento preventivo busca reducir: menos correctivos significa menos paradas no planeadas, menos desperdicio y menos horas extra.')}
-${ficha('Equipos con más fallas (Pareto)', F.pareto.length ? e(F.pareto[0].codigo) : '—', '#8E1F1F', gHBarras(F.pareto.slice(0, 10).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.n })), '#C0392B'),
-  'Dónde se concentran las fallas.', 'Correctivos por equipo, de mayor a menor (top 10).', 'Registros correctivos del periodo por código de equipo.',
+${ficha('Equipos con más fallas (Pareto)', (F.paretoEquipos || []).length ? e(F.paretoEquipos[0].codigo) : '—', '#8E1F1F', gHBarras((F.paretoEquipos || []).slice(0, 10).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.n })), '#C0392B'),
+  'En qué equipos se concentran las fallas.', 'Correctivos por equipo (códigos E), de mayor a menor (top 10). Total en equipos: ' + fmtN(F.correctivosEquipos) + '.', 'Registros correctivos del periodo por código de equipo.',
   'Pocos equipos suelen concentrar la mayoría de fallas: ahí se justifican reparaciones mayores, repotenciación, reemplazo o refuerzo del plan.')}
+${ficha('Áreas con más intervenciones correctivas', (F.paretoAreas || []).length ? e(F.paretoAreas[0].codigo) : '—', '#C77700', gHBarras((F.paretoAreas || []).slice(0, 10).map(p => ({ l: p.codigo + ' ' + p.nombre, v: p.n })), '#C77700'),
+  'Qué áreas locativas demandan más arreglos (infraestructura, instalaciones, cuartos fríos, bodegas).', 'Correctivos por área (códigos A y M), de mayor a menor (top 10). Total en áreas: ' + fmtN(F.correctivosAreas) + '.', 'Registros correctivos del periodo por código de área.',
+  'Orienta las inversiones en infraestructura y adecuaciones locativas, separadas de las de maquinaria.')}
 ${ficha('Relación preventivo / correctivo', pcEv + ' %', sem(pcEv, M.pc), `<div style="display:flex;gap:18px;align-items:center">${gDona([{ v: F.preventivos, c: '#1D4E89' }, { v: F.correctivos, c: '#C0392B' }])}<div>Por eventos: <b>${pcEv} %</b> preventivo<br>Por horas: <b>${pcHr} %</b> preventivo<br><span style="color:#5B6470">${fmtN(F.horasPrev)} h preventivas · ${fmtN(F.horasCorr)} h correctivas</span></div></div>`,
   'Cuánto del trabajo es planeado frente a «apagar incendios».', 'Preventivos ÷ (preventivos + correctivos), por número de registros y por horas.', 'Tipo y tiempo de cada registro.',
   'Indicador de madurez del mantenimiento. La referencia usual de la industria es que al menos el 80 % del trabajo sea planeado; por debajo, los costos y las paradas se disparan.')}
@@ -959,9 +963,26 @@ ${ficha('Equipos que quedaron no operativos', fmtN(F.noOperativos.length), F.noO
   'Equipos fuera de servicio reducen capacidad o exigen reprogramar producción; requieren seguimiento y, a veces, decisión de compra.')}
 
 <h2>C · Personas y recursos</h2>
-${ficha('Cumplimiento por técnico', tecs.length + ' técnicos', '#1D4E89', gHBarras(tecs, '#1D4E89', ' %'),
-  'El cumplimiento del plan en los equipos asignados a cada técnico.', 'Tareas ejecutadas ÷ programadas de los equipos de los que cada técnico es responsable.', 'Asignación de equipos + plan + registros.',
-  'Permite reconocer el buen desempeño, detectar sobrecarga y balancear la asignación de equipos.')}
+${(() => {
+  const personal = G.res.tecnicos, regPor = {}; D.tecnicos.forEach(t => regPor[t.tecnico] = t);
+  const filas = personal.map(t => { const x = C.porTecnico[t.nombre], r = regPor[t.nombre] || { prev: 0, corr: 0, total: 0 };
+    return { nombre: t.nombre, rol: t.rol || '', asignado: !!(x && x.prog), pct: x && x.prog ? pct(x.AT + x.EX, x.prog) : null, prog: x ? x.prog : 0, reg: r.total, prev: r.prev, corr: r.corr }; });
+  const asig = filas.filter(f => f.asignado).sort((a, b) => b.pct - a.pct), sinAsig = filas.filter(f => !f.asignado).sort((a, b) => b.reg - a.reg);
+  const reportan = filas.filter(f => f.reg > 0).length, regAsig = asig.reduce((a, f) => a + f.reg, 0), regSin = sinAsig.reduce((a, f) => a + f.reg, 0);
+  const graf = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;text-align:center">
+      <div style="background:#F3F5F8;border-radius:8px;padding:8px"><b style="font-size:20px">${filas.length}</b><br><span style="font-size:10px;color:#5B6470">personas en la lista de técnicos</span></div>
+      <div style="background:#EEF4FB;border-radius:8px;padding:8px"><b style="font-size:20px;color:#1D4E89">${asig.length}</b><br><span style="font-size:10px;color:#5B6470">con equipos asignados (plan)</span></div>
+      <div style="background:#F3F5F8;border-radius:8px;padding:8px"><b style="font-size:20px">${reportan}</b><br><span style="font-size:10px;color:#5B6470">reportaron actividades en el periodo</span></div></div>
+    <b style="font-size:11px;color:#1D4E89">CON EQUIPOS ASIGNADOS · cumplimiento del plan</b>${gHBarras(asig.map(f => ({ l: f.nombre + ' (' + fmtN(f.prog) + ' tareas)', v: f.pct, c: f.pct >= M.cumpl ? '#1B5E34' : f.pct >= M.cumpl - 10 ? '#C77700' : '#8E1F1F' })), '#1D4E89', ' %')}
+    ${sinAsig.length ? `<b style="font-size:11px;color:#5B6470;display:block;margin-top:10px">SIN EQUIPOS ASIGNADOS · registros en el periodo</b>
+      <table><tr><th>Persona</th><th>Rol</th><th>Preventivos</th><th>Correctivos</th></tr>${sinAsig.map(f => `<tr><td>${esc(f.nombre)}</td><td>${esc(f.rol)}</td><td>${fmtN(f.prev)}</td><td>${fmtN(f.corr)}</td></tr>`).join('')}</table>` : ''}
+    <div style="font-size:11px;color:#5B6470;margin-top:6px">Registros del periodo: ${fmtN(regAsig)} de técnicos con equipos asignados · ${fmtN(regSin)} de personal sin equipos asignados.</div>`;
+  return ficha('Personal técnico y cumplimiento por técnico', asig.length + ' de ' + filas.length, '#1D4E89', graf,
+    'Cuántas personas conforman el equipo técnico, a cuántas se les asigna el plan y cómo cumple cada una.',
+    'Cumplimiento = tareas ejecutadas ÷ programadas en los equipos de los que cada técnico es responsable. Al personal sin equipos asignados no se le calcula cumplimiento: se muestra su aporte en registros.',
+    'Lista de técnicos (' + filas.length + ' activos) + asignación de equipos + plan + registros del periodo.',
+    'Muestra si la carga del plan está bien repartida en todo el personal disponible: hoy ' + asig.length + ' personas sostienen el plan preventivo y ' + (filas.length - asig.length) + ' apoyan sin equipos a cargo (correctivos, supervisión u otras labores). Es la base para balancear asignaciones o justificar personal.');
+})()}
 ${ficha('Horas-hombre de mantenimiento', fmtN(F.horasPrev + F.horasCorr) + ' h', '#1D4E89', gBarras(rM.map(x => ({ label: x.label, hp: x.hp, hc: x.hc })), [{ k: 'hp', color: '#1D4E89' }, { k: 'hc', color: '#C0392B' }]) + '<div class="ley"><span><i style="background:#1D4E89"></i>Horas preventivas</span><span><i style="background:#C0392B"></i>Horas correctivas</span></div>' + gHBarras(horasTec, '#5B6470', ' h'),
   'En qué se invierte el tiempo del personal.', 'Suma del tiempo registrado por tipo de trabajo, por mes y por técnico.', 'Tiempo reportado en cada registro (aproximado en el histórico).',
   'Muestra la capacidad real del equipo y cuánto tiempo se pierde en fallas que podrían prevenirse.')}
