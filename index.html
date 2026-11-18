@@ -106,7 +106,8 @@ select.in{appearance:auto}
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
-const VERSION = 'v9 · 2026-11-13';
+const VERSION = 'v1.00001';   // consecutivo de entrega (app de campo)
+const verTxt = () => 'App ' + VERSION + (S.versiones ? ' · Servidor ' + S.versiones.backend + ' / ' + S.versiones.gestion + ' / ' + S.versiones.codigo : '');
 
 const qs = new URLSearchParams(location.search);
 const S = { a: (qs.get('a') || '').trim().toUpperCase(), k: (qs.get('k') || '').trim(), token: null, tec: null, data: null,
@@ -164,7 +165,7 @@ function vistaLogin(msg) {
     <p style="margin:0;font-size:15px;line-height:1.5">Inicia sesión con tu cuenta Google autorizada.</p>
     <div id="gbtn" style="min-height:44px;display:flex;justify-content:center"></div>
     <div class="note info">Solo técnicos registrados y activos. Cada acceso queda registrado.</div>
-    <span class="muted center" style="display:block">${VERSION}</span></div>`;
+    <span class="muted center" style="display:block">${verTxt()}</span></div>`;
   const pintar = () => {
     if (!(window.google && google.accounts && google.accounts.id)) return setTimeout(pintar, 200);
     google.accounts.id.initialize({ client_id: CLIENT_ID, callback: r => { guardarToken(r.credential); iniciar(); },
@@ -220,7 +221,7 @@ async function iniciar() {
   cargando('Verificando acceso…');
   try {
     const s = await api('sesion');
-    S.tec = s.tecnico;
+    S.tec = s.tecnico; S.versiones = s.versiones;
     barraSesion(true);
     if (S.a) await cargarActivo(); else vistaInicio();
   } catch (e) { if (!e.manejado) vistaError(e.message); }
@@ -241,7 +242,7 @@ async function vistaInicio() {
     <div id="avanceCard" class="card"><span class="muted">Cargando tu avance…</span></div>
     <div id="misTareas" style="display:flex;flex-direction:column;gap:10px"></div>
     ${buscadorHTML()}
-    <span class="muted center" style="display:block">${VERSION}</span></div>`;
+    <span class="muted center" style="display:block">${verTxt()}</span></div>`;
   document.getElementById('scan').onclick = abrirEscaner;
   activarBuscador();
   try {
