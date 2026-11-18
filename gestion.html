@@ -77,7 +77,7 @@ td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.cli
 <div id="toast" class="toast hidden" role="status"></div>
 
 <script>
-const VERSION_PAGINA = 'v1.00001';   // consecutivo de entrega (página de gestión)
+const VERSION_PAGINA = 'v1.00002';   // consecutivo de entrega (página de gestión)
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
 const app = document.getElementById('app');
@@ -229,7 +229,7 @@ async function vAsig() {
         <span class="muted">Barra gris = carga (tareas activas; naranja si supera 30 % el promedio) · barra de color y % = avance de la quincena elegida · ${puede() ? 'arrastra un equipo a una tarjeta o haz clic en un código para seleccionarlo' : 'solo lectura'}</span>
         <div class="grid3">${tecs.map(t => { const c = carga[t], alto = c.ta > prom * 1.3;
           const av = avPor[t] || { pct: 0, hechas: 0, total: 0, vencidas: 0 };
-          return `<div class="tcard" data-tec="${esc(t)}"><div class="row" style="justify-content:space-between"><b style="font-size:14px">${esc(t)}</b>
+          return `<div class="tcard" data-tec="${esc(t)}"><div class="row" style="justify-content:space-between"><button type="button" class="lnk" data-hist="${esc(t)}" title="Ver historial de actividades de ${esc(t)}" style="font-size:14px;font-weight:700;background:none;border:0;padding:0;cursor:pointer;color:var(--primary);text-decoration:underline;text-underline-offset:3px;text-align:left">${esc(t)}</button>
             <span class="chip ${av.total ? semaf(av.pct) : 'c-gr'}" title="Avance ${esc(G.qAsig)}">${av.total ? av.pct + ' %' : 'sin tareas'}</span></div>
             <span class="muted">${c.eq.length} eq · ${c.ta} tareas activas · ${esc(G.qAsig)}: ${av.hechas}/${av.total}${av.vencidas ? ' · remanente ' + av.vencidas : ''}${av.ejecutoEl ? ' · ejecutó ' + av.ejecutoEl : ''}</span>
             <div class="bar" title="Carga"><i style="width:${Math.round(100 * c.ta / maxT)}%;background:${alto ? 'var(--ex)' : '#AEB5BF'}"></i></div>
@@ -238,6 +238,7 @@ async function vAsig() {
     </div></div>`;
   const re = () => vAsig();
   document.getElementById('qasig').onchange = e => { G.qAsig = e.target.value; vAsig(); };
+  app.querySelectorAll('[data-hist]').forEach(b => b.onclick = ev => { ev.stopPropagation(); histTecnico(b.dataset.hist, G.qAsig); });
   document.getElementById('aq').onchange = e => { G.f.q = e.target.value.trim(); re(); };
   document.getElementById('as').onchange = e => { G.f.sector = e.target.value; re(); };
   if (!puede()) return;
@@ -1107,6 +1108,52 @@ async function llenarPlantilla(file, P, anio, responsable) {
   } catch (e) { console.warn(e); }
   zip.file('xl/workbook.xml', wb.replace(/<calcPr([^/]*)\/>/, (a, b) => '<calcPr' + b.replace(/ fullCalcOnLoad="\d"/, '') + ' fullCalcOnLoad="1"/>'));
   return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+/* ---------- Historial de actividades de un técnico ---------- */
+async function histTecnico(nombre, q) {
+  let m = document.getElementById('mhist');
+  if (!m) { m = document.createElement('div'); m.className = 'modal'; m.id = 'mhist'; document.body.appendChild(m); }
+  const pintar = html => { m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Historial de ${esc(nombre)}" style="width:min(1100px,96vw);max-height:92vh;overflow:auto">${html}</div>`; };
+  const cab = `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><b style="font-size:19px">Historial · ${esc(nombre)}</b>
+    <span class="row" style="gap:8px"><select class="in" id="hq" style="width:250px" aria-label="Quincena">${opcionesQ(q)}</select><button class="btn g s" type="button" id="hx">Cerrar</button></span></div>`;
+  pintar(cab + '<div class="spin" aria-hidden="true"></div><p class="muted" style="text-align:center">Buscando los registros de ' + esc(q) + '…</p>');
+  const enlazar = () => {
+    m.querySelector('#hx').onclick = () => m.remove();
+    m.querySelector('#hq').onchange = e => histTecnico(nombre, e.target.value);
+  };
+  enlazar();
+  let D;
+  try { D = await api('g_actividadesTecnico', { tecnico: nombre, q }); } catch (e) { m.remove(); return fallo(e); }
+  if (!document.body.contains(m)) return;
+  const R = D.resumen;
+  const filtro = { tipo: '' };
+  const tabla = () => {
+    const it = D.items.filter(x => !filtro.tipo || x.tipo === filtro.tipo);
+    return `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Equipo / área</th><th>Código</th><th>Actividad</th><th>Tiempo</th><th>Foto</th></tr></thead><tbody>
+      ${it.map(x => `<tr class="click" data-act="${esc(x.activo)}"><td style="white-space:nowrap">${esc(x.fecha)}</td>
+        <td>${x.tipo === 'Correctivo' ? '<span class="chip c-ne">Correctivo</span>' : '<span class="chip c-at">Preventivo</span>'}</td>
+        <td><span class="code">${esc(x.activo)}</span> ${esc(x.nombre)}${x.propio ? '' : ' <span class="chip c-gr" title="Equipo asignado a otro técnico">otro</span>'}</td>
+        <td class="code" style="font-size:12px">${esc(x.codigo)}</td><td>${esc(x.desc)}</td><td>${x.min ? Math.round(x.min) + ' min' : '—'}</td><td>${x.foto ? '✓' : '—'}</td></tr>`).join('')
+        || '<tr><td colspan="7" class="muted">Sin registros en esta quincena.</td></tr>'}</tbody></table>`;
+  };
+  pintar(cab + `<span class="muted">${esc(D.quincena.etiqueta)} · ${esc(D.quincena.inicio)} a ${esc(D.quincena.fin)} · incluye sistema nuevo, Hoja 1 y formulario</span>
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi"><span>Registros</span><b>${R.total}</b><span class="muted">${R.equipos} equipos o áreas distintos</span></div>
+      <div class="kpi"><span>Preventivos</span><b style="color:var(--at)">${R.preventivos}</b><span class="muted">&nbsp;</span></div>
+      <div class="kpi"><span>Correctivos</span><b style="color:var(--ne)">${R.correctivos}</b><span class="muted">&nbsp;</span></div>
+      <div class="kpi"><span>Horas registradas</span><b>${String(R.horas).replace('.', ',')}</b><span class="muted">${R.conFoto} con foto</span></div>
+      <div class="kpi"><span>En sus equipos</span><b>${R.enSusEquipos}</b><span class="muted">${R.total - R.enSusEquipos} en equipos de otros</span></div></div>
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap"><div class="pills">${[['', 'Todo'], ['Preventivo', 'Preventivos'], ['Correctivo', 'Correctivos']].map(([k, t]) => `<button type="button" data-ft="${k}" aria-pressed="${filtro.tipo === k}">${t}</button>`).join('')}</div>
+      <button class="btn o s" type="button" id="hcsv">Descargar (Excel)</button></div>
+    <div class="card scroll" id="htab" style="max-height:55vh">${tabla()}</div>`);
+  enlazar();
+  const reTabla = () => { m.querySelector('#htab').innerHTML = tabla(); m.querySelectorAll('#htab tr[data-act]').forEach(tr => tr.onclick = () => { m.remove(); abrirFicha(tr.dataset.act, 'hv'); }); };
+  m.querySelectorAll('[data-ft]').forEach(b => b.onclick = () => { filtro.tipo = b.dataset.ft; m.querySelectorAll('[data-ft]').forEach(x => x.setAttribute('aria-pressed', x === b)); reTabla(); });
+  reTabla();
+  m.querySelector('#hcsv').onclick = () => descargarCSV('Historial_' + nombre.replace(/\s+/g, '_') + '_' + D.quincena.etiqueta + '.csv',
+    [['Técnico', 'Quincena', 'Fecha', 'Tipo', 'Equipo', 'Nombre', 'Código', 'Actividad', 'Minutos', 'Foto', 'Equipo asignado a él']]
+      .concat(D.items.map(x => [nombre, D.quincena.etiqueta, x.fecha, x.tipo, x.activo, x.nombre, x.codigo, x.desc, Math.round(x.min || 0), x.foto ? 'Sí' : 'No', x.propio ? 'Sí' : 'No'])));
 }
 
 /* ---------- Nuevo equipo ---------- */
