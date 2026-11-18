@@ -615,8 +615,10 @@ async function vInd() {
     <button class="btn" type="button" id="igo" style="align-self:flex-end">Calcular</button>
     <button class="btn o" type="button" id="idesc" style="align-self:flex-end">Descargar no ejecutadas (Excel)</button>
     <button class="btn" type="button" id="iinf" style="align-self:flex-end;background:#16191D">Informe para gerencia</button>
+    <button class="btn o" type="button" id="ipla" style="align-self:flex-end">Llenar plantilla de área (Excel)</button>
     <span class="muted" style="align-self:flex-end">Incluye el sistema nuevo, la Hoja 1 y el formulario. Un periodo largo puede tardar hasta 30 s.</span></div><div id="ires"></div></div>`;
   document.getElementById('iinf').onclick = () => modalInforme();
+  document.getElementById('ipla').onclick = () => modalPlantilla();
   document.getElementById('idesc').onclick = async () => {
     IND.desde = document.getElementById('idd').value; IND.hasta = document.getElementById('idh').value; IND.alcance = document.getElementById('ialc').value;
     const clave = IND.desde + IND.hasta + IND.alcance;
@@ -682,6 +684,9 @@ async function calcInd() {
 
 
     <b style="font-size:18px">B · Fallas y correctivos</b>
+    ${(D.registrosPorMes || []).length ? `<div class="card scroll"><table><thead><tr><th>Mes</th><th>Registros preventivos</th><th>Registros correctivos</th><th>Correctivos frente a preventivos</th><th>Horas preventivas</th><th>Horas correctivas</th></tr></thead><tbody>
+      ${D.registrosPorMes.map(x => `<tr><td>${esc(x.mes)}</td><td>${fmtN(x.prev)}</td><td>${fmtN(x.corr)}</td><td><b>${x.prev ? (100 * x.corr / x.prev).toFixed(1).replace('.', ',') + ' %' : '—'}</b></td><td>${fmtN(Math.round(x.minPrev / 60))}</td><td>${fmtN(Math.round(x.minCorr / 60))}</td></tr>`).join('')}
+      <tr><td><b>Total</b></td><td><b>${fmtN(D.registrosPorMes.reduce((a, x) => a + x.prev, 0))}</b></td><td><b>${fmtN(D.registrosPorMes.reduce((a, x) => a + x.corr, 0))}</b></td><td></td><td></td><td></td></tr></tbody></table></div>` : ''}
     <div class="kpis"><div class="kpi"><span>Correctivos</span><b>${F.correctivos}</b><span class="muted">en el periodo</span></div>
       <div class="kpi"><span>Preventivos</span><b>${F.preventivos}</b><span class="muted">registros</span></div>
       <div class="kpi"><span>MTTR</span><b>${F.mttr == null ? '—' : F.mttr + ' min'}</b><span class="muted">promedio por correctivo</span></div>
@@ -1013,6 +1018,92 @@ ${ficha('Servicios de contratistas', fmtN(D.contratistas.servicios) + ' (' + D.c
 <li>Parte de los registros de febrero a octubre de 2026 se recuperaron de una consolidación previa, depurando duplicados y datos inconsistentes.</li></ul></div>
 <div class="firmas"><div>Elaboró · Gestión de Desarrollo</div><div>Revisó</div><div>Gerencia</div></div>
 </div></body></html>`;
+}
+
+/* ---------- Plantilla de registro por área ---------- */
+const CRIT_PLANTILLA = [
+  ['cumpl', 'Cumplimiento del plan de mantenimiento preventivo (equipos)', '%', 0.9, 'Más es mejor', 'Promedio'],
+  ['crit', 'Cumplimiento del plan en equipos críticos (C1 y C2)', '%', 0.95, 'Más es mejor', 'Promedio'],
+  ['prevEjec', 'Actividades preventivas ejecutadas', 'Casos', 1200, 'Más es mejor', 'Suma'],
+  ['ne', 'Actividades preventivas no ejecutadas', 'Casos', 130, 'Menos es mejor', 'Suma'],
+  ['corrE', 'Mantenimientos correctivos en equipos', 'Casos', 70, 'Menos es mejor', 'Suma'],
+  ['corrA', 'Intervenciones correctivas y locativas en áreas', 'Casos', 80, 'Menos es mejor', 'Suma'],
+  ['pcPct', 'Trabajo preventivo sobre el total de intervenciones', '%', 0.8, 'Más es mejor', 'Promedio'],
+  ['mttr', 'Tiempo medio de reparación de correctivos (MTTR)', 'Minutos', 60, 'Menos es mejor', 'Promedio'],
+  ['rein', 'Fallas repetidas en equipos (≤ 30 días de la anterior)', 'Casos', 40, 'Menos es mejor', 'Suma']];
+function modalPlantilla() {
+  const y = new Date().getFullYear();
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Llenar plantilla"><b style="font-size:19px">Llenar plantilla de registro por área</b>
+    <span class="muted">Elige el archivo de plantilla (.xlsx). La app escribe en la hoja «Registro» los ${CRIT_PLANTILLA.length} criterios de mantenimiento con los valores mensuales calculados aquí, y descargas el mismo archivo diligenciado (formatos, fórmulas y listas intactos).</span>
+    <div class="row"><div><label class="f" for="pa">Año</label><input class="in" type="number" id="pa" value="${y}" style="width:120px"></div>
+      <div><label class="f" for="ph">Hasta el mes</label><select class="in" id="ph">${MESN.map((n, i) => `<option value="${i + 1}" ${i === new Date().getMonth() - 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="grow"><label class="f" for="pr">Responsable</label><input class="in" id="pr" value="${esc(G.tec.nombre)}"></div></div>
+    <span class="muted">Sugerencia: «hasta» el último mes cerrado; el mes en curso daría valores parciales.</span>
+    <div><label class="f" for="pf">Archivo de plantilla</label><input class="in" type="file" id="pf" accept=".xlsx"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn g" type="button" id="pc">Cancelar</button><button class="btn" type="button" id="pok">Calcular y llenar</button></div></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#pc').onclick = () => m.remove();
+  m.querySelector('#pok').onclick = async () => {
+    const f = m.querySelector('#pf').files[0]; if (!f) return toast('Elige el archivo de plantilla');
+    const anio = +m.querySelector('#pa').value, hastaM = +m.querySelector('#ph').value;
+    const b = m.querySelector('#pok'); b.disabled = true; b.textContent = 'Calculando…';
+    try {
+      if (!window.JSZip) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+      const hasta = new Date(anio, hastaM, 0);
+      const D = await api('g_indicadores', { desde: anio + '-01-01', hasta: hasta.toISOString().slice(0, 10), alcance: 'EQUIPOS' });
+      b.textContent = 'Llenando…';
+      const blob = await llenarPlantilla(f, D.plantilla, anio, m.querySelector('#pr').value.trim());
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'Registro_Mantenimiento_' + anio + '_hasta_' + MESN[hastaM - 1] + '.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+      m.remove(); toast('Plantilla diligenciada');
+    } catch (e) { fallo(e.message ? e : { message: String(e) }); b.disabled = false; b.textContent = 'Calcular y llenar'; }
+  };
+}
+async function llenarPlantilla(file, P, anio, responsable) {
+  const zip = await JSZip.loadAsync(file);
+  const wb = await zip.file('xl/workbook.xml').async('string'), rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const hojaPath = nombre => { const m = new RegExp('<sheet [^>]*name="' + nombre + '"[^>]*r:id="([^"]+)"').exec(wb); if (!m) throw new Error('La plantilla no tiene la hoja «' + nombre + '»');
+    const t = new RegExp('Id="' + m[1] + '"[^>]*Target="([^"]+)"').exec(rels) || new RegExp('Target="([^"]+)"[^>]*Id="' + m[1] + '"').exec(rels); return 'xl/' + t[1].replace(/^\/?xl\//, ''); };
+  const xmlEsc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const setc = (s, ref, val) => {
+    const re = new RegExp('<c r="' + ref + '"( [^>]*?)?(/>|>[\\s\\S]*?</c>)'), m = re.exec(s);
+    if (!m) throw new Error('No encontré la celda ' + ref + ' en la plantilla');
+    const st = / s="(\d+)"/.exec(m[0]), sa = st ? ' s="' + st[1] + '"' : '';
+    const nuevo = val === null || val === undefined || val === '' ? `<c r="${ref}"${sa}/>`
+      : typeof val === 'number' ? `<c r="${ref}"${sa}><v>${val}</v></c>` : `<c r="${ref}"${sa} t="inlineStr"><is><t>${xmlEsc(val)}</t></is></c>`;
+    return s.slice(0, m.index) + nuevo + s.slice(m.index + m[0].length);
+  };
+  const pReg = hojaPath('Registro'); let s = await zip.file(pReg).async('string');
+  s = setc(s, 'C4', 'Mantenimiento'); s = setc(s, 'G4', anio); if (responsable) s = setc(s, 'J4', responsable);
+  const colMes = ['H', 'J', 'L', 'N', 'P', 'R', 'T', 'V', 'X', 'Z', 'AB', 'AD'];
+  CRIT_PLANTILLA.forEach(([k, nombre, uni, meta, mejor, total], i) => {
+    const r = 8 + i;
+    s = setc(s, 'C' + r, nombre); s = setc(s, 'D' + r, uni); s = setc(s, 'E' + r, meta); s = setc(s, 'F' + r, mejor); s = setc(s, 'G' + r, total);
+    colMes.forEach((col, mi) => {
+      const idx = P.meses.indexOf(anio + '-' + String(mi + 1).padStart(2, '0'));
+      s = setc(s, col + r, idx >= 0 ? P.filas[k][idx] : null);
+    });
+  });
+  zip.file(pReg, s);
+  // «Mantenimiento» en la lista de áreas (hoja Listas, columna A) si no está
+  try {
+    const pL = hojaPath('Listas'); let l = await zip.file(pL).async('string');
+    if (!/Mantenimiento/.test(l)) {
+      for (let r = 2; r <= 30; r++) {
+        if (new RegExp('<c r="A' + r + '"[^>]*>(?!<\\/c>)[\\s\\S]*?<v>|<c r="A' + r + '"[^>]*t="inlineStr"').test(l)) continue;
+        const fila = new RegExp('<row r="' + r + '"[^>]*>').exec(l);
+        const celda = `<c r="A${r}" t="inlineStr"><is><t>Mantenimiento</t></is></c>`;
+        if (fila) { l = l.replace(new RegExp('<c r="A' + r + '"[^>]*/>'), ''); l = l.slice(0, fila.index + fila[0].length) + celda + l.slice(fila.index + fila[0].length); }
+        else { const ant = [...l.matchAll(/<row r="(\d+)"[^>]*>[\s\S]*?<\/row>/g)].filter(x => +x[1] < r).pop();
+          const pos = ant ? ant.index + ant[0].length : l.indexOf('<sheetData>') + 11; l = l.slice(0, pos) + `<row r="${r}">${celda}</row>` + l.slice(pos); }
+        break;
+      }
+      zip.file(pL, l);
+    }
+  } catch (e) { console.warn(e); }
+  zip.file('xl/workbook.xml', wb.replace(/<calcPr([^/]*)\/>/, (a, b) => '<calcPr' + b.replace(/ fullCalcOnLoad="\d"/, '') + ' fullCalcOnLoad="1"/>'));
+  return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 /* ---------- Nuevo equipo ---------- */
