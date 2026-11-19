@@ -77,7 +77,7 @@ td{padding:9px 12px;border-bottom:1px solid #ECEEF1;vertical-align:middle}tr.cli
 <div id="toast" class="toast hidden" role="status"></div>
 
 <script>
-const VERSION_PAGINA = 'v1.00002';   // consecutivo de entrega (página de gestión)
+const VERSION_PAGINA = 'v1.00003';   // consecutivo de entrega (página de gestión)
 const API_URL = 'https://script.google.com/macros/s/AKfycbyHE0Y-nP19PfPFndNkxlsy8lmdYzcicBL4AcV4sVCK4BkGTwHbHizoDLlCwUZM7qVG/exec';
 const CLIENT_ID = '22939874565-e53j3p3oar2l9tqtcbhtn8o6lecbsmq9.apps.googleusercontent.com';
 const app = document.getElementById('app');
@@ -1025,21 +1025,32 @@ ${ficha('Servicios de contratistas', fmtN(D.contratistas.servicios) + ' (' + D.c
 }
 
 /* ---------- Plantilla de registro por área ---------- */
-const CRIT_PLANTILLA = [
-  ['cumpl', 'Cumplimiento del plan de mantenimiento preventivo (equipos)', '%', 0.9, 'Más es mejor', 'Promedio'],
-  ['crit', 'Cumplimiento del plan en equipos críticos (C1 y C2)', '%', 0.95, 'Más es mejor', 'Promedio'],
-  ['prevEjec', 'Actividades preventivas ejecutadas', 'Casos', 1200, 'Más es mejor', 'Suma'],
-  ['ne', 'Actividades preventivas no ejecutadas', 'Casos', 130, 'Menos es mejor', 'Suma'],
-  ['corrE', 'Mantenimientos correctivos en equipos', 'Casos', 70, 'Menos es mejor', 'Suma'],
-  ['corrA', 'Intervenciones correctivas y locativas en áreas', 'Casos', 80, 'Menos es mejor', 'Suma'],
-  ['pcPct', 'Trabajo preventivo sobre el total de intervenciones', '%', 0.8, 'Más es mejor', 'Promedio'],
-  ['mttr', 'Tiempo medio de reparación de correctivos (MTTR)', 'Minutos', 60, 'Menos es mejor', 'Promedio'],
-  ['rein', 'Fallas repetidas en equipos (≤ 30 días de la anterior)', 'Casos', 40, 'Menos es mejor', 'Suma']];
+const CRIT_PLANTILLA = [   // [clave, criterio, unidad, meta mensual, mejor si es, total] · orden y definiciones acordadas con el área
+  ['cumpl', 'Cumplimiento del plan de mantenimiento preventivo', '%', 0.9, 'Más es mejor', 'Promedio'],
+  ['oport', 'Oportunidad (actividades ejecutadas a tiempo)', '%', 0.85, 'Más es mejor', 'Promedio'],
+  ['nePct', 'Actividades preventivas no ejecutadas frente a las programadas', '%', 0.1, 'Menos es mejor', 'Promedio'],
+  ['corrPrev', 'Mantenimientos correctivos frente a los preventivos registrados', '%', 0.05, 'Menos es mejor', 'Promedio'],
+  ['horas', 'Horas-hombre de mantenimiento (meta: 50 % de 10 técnicos asignados × 42 h/semana)', 'Horas', 910, 'Más es mejor', 'Suma'],
+  ['crit', 'Cumplimiento del plan en equipos críticos C1/C2', '%', 0.95, 'Más es mejor', 'Promedio'],
+  ['pcEv', 'Trabajo preventivo sobre el total, por eventos', '%', 0.8, 'Más es mejor', 'Promedio'],
+  ['pcHr', 'Trabajo preventivo sobre el total, por horas', '%', 0.8, 'Más es mejor', 'Promedio'],
+  ['mttr', 'Tiempo medio de reparación MTTR', 'Minutos', 90, 'Menos es mejor', 'Promedio'],
+  ['mtbf', 'Intervalo medio entre fallas MTBF calendario', 'Días', 15, 'Más es mejor', 'Promedio'],
+  ['corrEProg', 'Correctivos en equipos frente a los preventivos programados', '%', 0.1, 'Menos es mejor', 'Promedio'],
+  ['corrA', 'Intervenciones correctivas en áreas', 'Casos', '', 'Menos es mejor', 'Suma'],
+  ['rein', 'Fallas repetidas en equipos (30 días o menos de la anterior)', 'Casos', '', 'Menos es mejor', 'Suma'],
+  ['remanente', 'Remanente de tareas por subsanar (al cierre del mes)', 'Casos', 20, 'Menos es mejor', 'Promedio'],
+  ['noOper', 'Equipos que quedaron no operativos (al cierre del mes)', 'Casos', '', 'Menos es mejor', 'Promedio'],
+  ['ju', 'Tareas no ejecutadas justificadas por los técnicos', 'Casos', '', 'Menos es mejor', 'Suma'],
+  ['contr', 'Servicios ejecutados por contratistas', 'Casos', '', 'Menos es mejor', 'Suma'],
+  ['tecAsig', 'Técnicos con equipos asignados', 'Personas', '', 'Más es mejor', 'Promedio'],
+  ['registros', 'Registros de mantenimiento analizados', 'Unidades', '', 'Más es mejor', 'Suma'],
+  ['progEval', 'Tareas programadas evaluadas para el cumplimiento', 'Unidades', '', 'Más es mejor', 'Suma']];
 function modalPlantilla() {
   const y = new Date().getFullYear();
   const m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Llenar plantilla"><b style="font-size:19px">Llenar plantilla de registro por área</b>
-    <span class="muted">Elige el archivo de plantilla (.xlsx). La app escribe en la hoja «Registro» los ${CRIT_PLANTILLA.length} criterios de mantenimiento con los valores mensuales calculados aquí, y descargas el mismo archivo diligenciado (formatos, fórmulas y listas intactos).</span>
+    <span class="muted">Elige el archivo de plantilla (.xlsx) del área. La app escribe en la hoja «Registro» los ${CRIT_PLANTILLA.length} criterios de mantenimiento, de enero hasta el mes elegido, y descargas el mismo archivo diligenciado (formatos, fórmulas y listas intactos). Úsalo cada mes al cierre: los meses anteriores se mantienen y se agrega el nuevo.</span>
     <div class="row"><div><label class="f" for="pa">Año</label><input class="in" type="number" id="pa" value="${y}" style="width:120px"></div>
       <div><label class="f" for="ph">Hasta el mes</label><select class="in" id="ph">${MESN.map((n, i) => `<option value="${i + 1}" ${i === new Date().getMonth() - 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="grow"><label class="f" for="pr">Responsable</label><input class="in" id="pr" value="${esc(G.tec.nombre)}"></div></div>
@@ -1089,6 +1100,7 @@ async function llenarPlantilla(file, P, anio, responsable) {
       s = setc(s, col + r, idx >= 0 ? P.filas[k][idx] : null);
     });
   });
+  for (let r = 8 + CRIT_PLANTILLA.length; r <= 37; r++) ['C', 'D', 'E', 'F', 'G'].concat(colMes).forEach(c => { try { s = setc(s, c + r, null); } catch (e) {} });
   zip.file(pReg, s);
   // «Mantenimiento» en la lista de áreas (hoja Listas, columna A) si no está
   try {
